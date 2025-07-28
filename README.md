@@ -1,2 +1,2 @@
-# SoftCells - (Very) Soft Body Physics Simulation
+# SoftCells - (Very Simple) Soft Body Physics Simulation
 
