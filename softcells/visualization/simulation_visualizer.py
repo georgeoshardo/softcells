@@ -221,6 +221,9 @@ class SimulationVisualizer:
         # Draw springs with color based on stretch
         if hasattr(shape, 'springs_enabled') and shape.springs_enabled and len(shape.springs) > 0:
             for spring in shape.springs:
+                if spring.point1.winding_x != spring.point2.winding_x or \
+                   spring.point1.winding_y != spring.point2.winding_y:
+                    continue
                 # Calculate spring color based on stretch
                 stretch_ratio = spring.get_stretch_ratio()
                 
@@ -234,12 +237,13 @@ class SimulationVisualizer:
                     color = (0, 255, 0)
                 
                 # Draw the spring
-                pos1 = (int(spring.point1.x), int(spring.point1.y))
-                pos2 = (int(spring.point2.x), int(spring.point2.y))
+                pos1 = (int(spring.point1.x_world), int(spring.point1.y_world))
+                pos2 = (int(spring.point2.x_world), int(spring.point2.y_world))
+
                 pygame.draw.line(self.screen, color, pos1, pos2, shape.line_width)
         else:
             # Draw basic lines if springs are disabled
-            positions = [(int(point.x), int(point.y)) for point in shape.points]
+            positions = [(int(point.x_world), int(point.y_world)) for point in shape.points]
             for i in range(len(positions)):
                 start_pos = positions[i]
                 end_pos = positions[(i + 1) % len(positions)]
@@ -248,15 +252,15 @@ class SimulationVisualizer:
         # Draw the individual points
         for point in shape.points:
             radius = max(2, int(3 + point.mass))
-            pos = (int(point.x), int(point.y))
+            pos = (int(point.x_world), int(point.y_world))
             pygame.draw.circle(self.screen, shape.color, pos, radius)
             pygame.draw.circle(self.screen, (255, 255, 255), pos, radius, 1)
     
     def _render_shape_info(self, shape):
         """Render physics information for a shape."""
         # Calculate center of shape for text
-        center_x = sum(p.x for p in shape.points) / len(shape.points)
-        center_y = sum(p.y for p in shape.points) / len(shape.points)
+        center_x = sum(p.x_world for p in shape.points) / len(shape.points)
+        center_y = sum(p.y_world for p in shape.points) / len(shape.points)
         
         # Create multi-line text display
         font_small = pygame.font.Font(None, 14)
@@ -294,7 +298,7 @@ class SimulationVisualizer:
             color = (intensity, intensity // 2, 255)
             
             # Draw the point
-            pos = (int(point.x), int(point.y))
+            pos = (int(point.x_world), int(point.y_world))
             pygame.draw.circle(self.screen, color, pos, radius)
             pygame.draw.circle(self.screen, (255, 255, 255), pos, radius, 1)
     

@@ -7,7 +7,7 @@ from ..core import PointMass
 from ..shapes import CircleShape
 from ..config import (
     DEFAULT_DT, DEFAULT_GRAVITY, DEFAULT_GLOBAL_DRAG_COEFFICIENT, 
-    DEFAULT_DRAG_TYPE, GLOBAL_PRESSURE_AMOUNT
+    DEFAULT_DRAG_TYPE, GLOBAL_PRESSURE_AMOUNT, PERIODIC, DEFAULT_WIDTH, DEFAULT_HEIGHT
 )
 from .collision_handler import CollisionHandler
 
@@ -80,7 +80,8 @@ class PhysicsEngine:
         Returns:
             PointMass: The created point mass
         """
-        point = PointMass(x, y, mass, self.global_drag_coefficient)
+        point = PointMass(x, y, mass, self.global_drag_coefficient,
+                          world_height=self.world_height, world_width=self.world_width)
         self.points.append(point)
         return point
     
@@ -224,19 +225,22 @@ class PhysicsEngine:
     
     def _handle_boundary_collision(self, point):
         """Handle collision with world boundaries for a single point."""
-        if point.x < 0:
-            point.x = 0
-            point.vx = -point.vx * 0.8  # Some energy loss on bounce
-        elif point.x > self.world_width:
-            point.x = self.world_width
-            point.vx = -point.vx * 0.8
-        
-        if point.y < 0:
-            point.y = 0
-            point.vy = -point.vy * 0.8
-        elif point.y > self.world_height:
-            point.y = self.world_height
-            point.vy = -point.vy * 0.8
+        if not PERIODIC:
+            if point.x < 0:
+                point.x = 0
+                point.vx = -point.vx * 0.8  # Some energy loss on bounce
+            elif point.x > self.world_width:
+                point.x = self.world_width
+                point.vx = -point.vx * 0.8
+            
+            if point.y < 0:
+                point.y = 0
+                point.vy = -point.vy * 0.8
+            elif point.y > self.world_height:
+                point.y = self.world_height
+                point.vy = -point.vy * 0.8
+        else:
+            pass
     
     def step(self):
         """Advance the simulation by one time step."""
