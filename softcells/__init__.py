@@ -20,7 +20,7 @@ Main Components:
 
 from .core import PointMass, Spring
 from .shapes import Shape, CircleShape
-from .simulation import PhysicsSimulation, PhysicsEngine, CollisionHandler
+from .simulation import PhysicsEngine, CollisionHandler
 from .visualization import SimulationVisualizer
 from .config import *
 

@@ -281,6 +281,7 @@ class Shape:
             o1, o2, o3, o4 = vectorized_orientations(p1, q1, p2, q2)
 
             # General case of intersection
+            # https://www.algotree.org/images/Line_Segment_Intersection_General_Case.svg
             if o1 != o2 and o3 != o4:
                 intersections += 1
                 continue
