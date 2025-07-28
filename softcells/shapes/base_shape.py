@@ -241,7 +241,11 @@ class Shape:
             return 0, 0, 0, 0
         x_coords = [p.x for p in self.points]
         y_coords = [p.y for p in self.points]
-        return min(x_coords), max(x_coords), min(y_coords), max(y_coords)
+        windings_x = [p.winding_x for p in self.points]
+        windings_y = [p.winding_y for p in self.points]
+        return (min(x_coords), max(x_coords), min(y_coords), max(y_coords)), \
+            (min(windings_x), max(windings_x), min(windings_y), max(windings_y))
+
 
     def is_point_inside(self, test_point):
         """
@@ -257,14 +261,23 @@ class Shape:
             return False
 
         # Get a point guaranteed to be outside the shape's bounding box.
-        _, max_x, _, _ = self._get_bounding_box()
-        outside_point = (max_x + 10, test_point.y)
+        (min_x, max_x, min_y, max_y), (min_wx, max_wx, min_wy, max_wy) = self._get_bounding_box()
+
+        test_point_in_shape_referential = (
+            test_point.x + (min_wx - test_point.winding_x) * test_point.world_width,
+            test_point.y + (min_wy - test_point.winding_y) * test_point.world_height
+        )
+
+        outside_point = (
+            max_x + 10, 
+            test_point_in_shape_referential[1] 
+        )
         
         intersections = 0
         num_points = len(self.points)
 
         # The ray is from test_point to outside_point.
-        p1 = (test_point.x, test_point.y)
+        p1 = test_point_in_shape_referential
         q1 = outside_point
 
         # Iterate over each edge of the shape.
@@ -306,12 +319,22 @@ class Shape:
         closest_edge = None
         closest_point_on_edge = None
 
+        # Get a point guaranteed to be outside the shape's bounding box.
+        (min_x, max_x, min_y, max_y), (min_wx, max_wx, min_wy, max_wy) = self._get_bounding_box()
+
+        test_point_in_shape_referential = (
+            test_point.x + (min_wx - test_point.winding_x) * test_point.world_width,
+            test_point.y + (min_wy - test_point.winding_y) * test_point.world_height
+        )
+
         if len(self.points) < 2:
             return None, None, None
 
         for i in range(len(self.points)):
             p1 = self.points[i]
             p2 = self.points[(i + 1) % len(self.points)]
+
+            
 
             # Vector from p1 to p2
             line_vec_x = p2.x - p1.x
@@ -323,7 +346,7 @@ class Shape:
                 continue
 
             # Projection of vector (test_point - p1) onto the edge vector
-            t = ((test_point.x - p1.x) * line_vec_x + (test_point.y - p1.y) * line_vec_y) / line_len_sq
+            t = ((test_point_in_shape_referential[0] - p1.x) * line_vec_x + (test_point_in_shape_referential[1] - p1.y) * line_vec_y) / line_len_sq
             t = max(0, min(1, t))  # Clamp t to the segment [0, 1]
 
             # Closest point on the line segment
@@ -331,7 +354,7 @@ class Shape:
             closest_y = p1.y + t * line_vec_y
 
             # Squared distance from the test point to the closest point on the segment
-            dist_sq = (test_point.x - closest_x)**2 + (test_point.y - closest_y)**2
+            dist_sq = (test_point_in_shape_referential[0] - closest_x)**2 + (test_point_in_shape_referential[1] - closest_y)**2
 
             if dist_sq < min_dist_sq:
                 min_dist_sq = dist_sq

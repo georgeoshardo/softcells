@@ -34,13 +34,13 @@ class CollisionHandler:
                 shape_a = shapes[i]
                 shape_b = shapes[j]
 
-                # --- BROAD PHASE: Bounding Box Check ---
-                min_ax, max_ax, min_ay, max_ay = shape_a._get_bounding_box()
-                min_bx, max_bx, min_by, max_by = shape_b._get_bounding_box()
+                # # --- BROAD PHASE: Bounding Box Check ---
+                # min_ax, max_ax, min_ay, max_ay = shape_a._get_bounding_box()
+                # min_bx, max_bx, min_by, max_by = shape_b._get_bounding_box()
 
-                # If the bounding boxes do not overlap, skip to the next pair
-                if max_ax < min_bx or min_ax > max_bx or max_ay < min_by or min_ay > max_by:
-                    continue  # Not colliding, so no need for the expensive check
+                # # If the bounding boxes do not overlap, skip to the next pair
+                # if max_ax < min_bx or min_ax > max_bx or max_ay < min_by or min_ay > max_by:
+                #     continue  # Not colliding, so no need for the expensive check
 
                 # Test points of A inside B
                 for point in shape_a.get_points():
