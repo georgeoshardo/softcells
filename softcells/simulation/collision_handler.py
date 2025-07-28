@@ -61,17 +61,27 @@ class CollisionHandler:
             colliding_point: The point mass that is colliding
             shape: The shape that the point is colliding with
         """
-        edge_p1, edge_p2, closest_point_data = shape.find_closest_edge(colliding_point)
+        edge_p1, edge_p2, t = shape.find_closest_edge(colliding_point)
 
         if not edge_p1:
             return
+        
+        # Get a point guaranteed to be outside the shape's bounding box.
+        (min_x, max_x, min_y, max_y), (min_wx, max_wx, min_wy, max_wy) = shape._get_bounding_box()
 
-        closest_x, closest_y, t = closest_point_data
+        
+        colliding_point_in_shape_referential = (
+            colliding_point.x + (min_wx - colliding_point.winding_x) * colliding_point.world_width,
+            colliding_point.y + (min_wy - colliding_point.winding_y) * colliding_point.world_height
+        )
+        
+        closest_x = (1-t) * edge_p1.x + t * edge_p2.x
+        closest_y = (1-t) * edge_p1.y + t * edge_p2.y
 
         # --- 1. POSITION RESOLUTION ---
         # The penetration vector points from the edge to the colliding point (inward)
-        penetration_vec_x = colliding_point.x - closest_x
-        penetration_vec_y = colliding_point.y - closest_y
+        penetration_vec_x = colliding_point_in_shape_referential[0] - closest_x
+        penetration_vec_y = colliding_point_in_shape_referential[1] - closest_y
         penetration_depth = math.sqrt(penetration_vec_x**2 + penetration_vec_y**2)
         
         if penetration_depth < 0.001:

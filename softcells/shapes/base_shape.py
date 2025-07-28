@@ -359,6 +359,5 @@ class Shape:
             if dist_sq < min_dist_sq:
                 min_dist_sq = dist_sq
                 closest_edge = (p1, p2)
-                closest_point_on_edge = (closest_x, closest_y, t) # Also return t for weighting
-
-        return closest_edge[0], closest_edge[1], closest_point_on_edge 
+  
+        return closest_edge[0], closest_edge[1], t 
