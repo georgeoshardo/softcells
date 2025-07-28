@@ -1,9 +1,9 @@
 """
 Base shape implementation for soft body physics.
+This module contains no rendering dependencies.
 """
 
 import math
-import pygame
 
 from ..core import Spring
 from ..utils.geometry import vectorized_orientations, on_segment
@@ -235,51 +235,6 @@ class Shape:
                 p1.apply_force(fx * 0.5, fy * 0.5)
                 p2.apply_force(fx * 0.5, fy * 0.5)
     
-    def render(self, screen):
-        """
-        Render this shape by drawing springs and points.
-        Springs are colored based on their stretch ratio.
-        
-        Args:
-            screen: Pygame screen surface
-        """
-        if len(self.points) < 2:
-            return
-        
-        # Draw springs with color based on stretch
-        if self.springs_enabled and len(self.springs) > 0:
-            for spring in self.springs:
-                # Calculate spring color based on stretch
-                stretch_ratio = spring.get_stretch_ratio()
-                
-                if stretch_ratio > 1.1:  # Stretched (red)
-                    intensity = min(1.0, (stretch_ratio - 1.0) * 3.0)
-                    color = (int(255 * intensity), 0, int(255 * (1 - intensity)))
-                elif stretch_ratio < 0.9:  # Compressed (blue)
-                    intensity = min(1.0, (1.0 - stretch_ratio) * 3.0)
-                    color = (int(255 * (1 - intensity)), 0, int(255 * intensity))
-                else:  # Normal length (green)
-                    color = (0, 255, 0)
-                
-                # Draw the spring
-                pos1 = (int(spring.point1.x), int(spring.point1.y))
-                pos2 = (int(spring.point2.x), int(spring.point2.y))
-                pygame.draw.line(screen, color, pos1, pos2, self.line_width)
-        else:
-            # Draw basic lines if springs are disabled
-            positions = [(int(point.x), int(point.y)) for point in self.points]
-            for i in range(len(positions)):
-                start_pos = positions[i]
-                end_pos = positions[(i + 1) % len(positions)]
-                pygame.draw.line(screen, self.color, start_pos, end_pos, self.line_width)
-        
-        # Draw the individual points
-        for point in self.points:
-            radius = max(2, int(3 + point.mass))
-            pos = (int(point.x), int(point.y))
-            pygame.draw.circle(screen, self.color, pos, radius)
-            pygame.draw.circle(screen, (255, 255, 255), pos, radius, 1)
-
     def _get_bounding_box(self):
         """Get the min and max coordinates of the shape."""
         if not self.points:

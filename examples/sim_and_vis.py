@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-SoftCells - Soft Body Physics Simulation
+SoftCells - Soft Body Physics Simulation (Decoupled Version)
 
-Main entry point for the soft body physics simulation.
+Main entry point for the soft body physics simulation using the new decoupled architecture.
 Run this script to start the interactive simulation.
 
 Usage:
-    python main.py
+    python main_decoupled.py
 
 Controls:
     TAB - Pause/Unpause simulation
@@ -22,18 +22,21 @@ Controls:
     D - Toggle drag physics
     E/X - Increase/Decrease drag coefficient
     T - Toggle drag type (linear/quadratic)
+    H - Toggle instructions display
+    I - Toggle physics info display
+    L - Toggle trails display
     ESC - Exit
 """
 
-from softcells import PhysicsSimulation
+from softcells import SimulationVisualizer
 
 
 def main():
-    """Main entry point for the simulation."""
+    """Main entry point for the decoupled simulation."""
     try:
-        # Create and run the simulation
-        simulation = PhysicsSimulation()
-        simulation.run()
+        # Create and run the visualization (which contains the physics engine)
+        visualizer = SimulationVisualizer()
+        visualizer.run()
     except KeyboardInterrupt:
         print("\nSimulation interrupted by user.")
     except Exception as e:
@@ -42,4 +45,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main() 
+    main()
