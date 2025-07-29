@@ -565,8 +565,79 @@ class Shape:
 
         return False, (None, None)  # Point is outside the shape
     
+    def is_point_outside(self, test_point):
+        """
+        Check if a point is inside this shape using the ray-casting algorithm.
+        Optimized with Numba for performance.
+        
+        Args:
+            test_point (PointMass): The point to check.
+            outside (bool): If True, checks if the point is outside the shape.
+        
+        Returns:
+            bool: True if the point is inside, False otherwise.
+        """
+        if len(self.points) < 3:
+            return False
 
-    def find_closest_edge(self, test_point, at_windings):
+        # Extract coordinates into numpy arrays for Numba processing
+        x_coords = np.array([p.x for p in self.points], dtype=np.float64)
+        y_coords = np.array([p.y for p in self.points], dtype=np.float64)
+
+        world_width = self.points[0].world_width
+        world_height = self.points[0].world_height
+
+        winding_x_coords, winding_y_coords = _compute_windings_batch(
+            x_coords, y_coords, world_width, world_height,
+        )
+        
+        # Use Numba-compiled function for fast bounding box and windings computation
+        min_x, max_x, min_y, max_y, unique_windings_x, unique_windings_y = _get_bounding_box_coords_and_windings(
+            x_coords, y_coords, winding_x_coords, winding_y_coords
+        )
+
+        # Pre-compute shape coordinates as numpy arrays for stable type inference
+        shape_points_x = np.array([p.x for p in self.points], dtype=np.float64)
+        shape_points_y = np.array([p.y for p in self.points], dtype=np.float64)
+
+        min_dist = float('inf')
+        winding_closest = (None, None)
+
+        for i in range(len(unique_windings_x)):
+            winding_x = int(unique_windings_x[i])
+            winding_y = int(unique_windings_y[i])
+            
+            test_point_in_shape_referential_x = (
+                test_point.x + (winding_x - test_point.winding_x) * test_point.world_width
+            )
+            test_point_in_shape_referential_y = (
+                test_point.y + (winding_y - test_point.winding_y) * test_point.world_height
+            )
+
+            outside_point_x = max_x + 10.0  # Use max_x directly instead of bb3.x
+            outside_point_y = test_point_in_shape_referential_y
+            
+            # Use the Numba-compiled function for the expensive ray-casting computation
+            intersections = _ray_cast_intersections_stable(
+                float(test_point_in_shape_referential_x), float(test_point_in_shape_referential_y),
+                float(outside_point_x), float(outside_point_y),
+                shape_points_x, shape_points_y
+            )
+
+            if intersections % 2 == 0:
+                p1, p2, _, dist = self.find_closest_edge(test_point, (winding_x, winding_y), return_distance=True)
+
+                if dist < min_dist:
+                    min_dist = dist
+                    winding_closest = (winding_x, winding_y)
+
+        if not np.isinf(min_dist):
+            return True, winding_closest
+
+        return False, (None, None)  # Point is outside the shape
+    
+
+    def find_closest_edge(self, test_point, at_windings, return_distance=False):
         """
         Finds the closest edge of the shape to a given point.
 
@@ -620,5 +691,7 @@ class Shape:
                 min_dist_sq = dist_sq
                 closest_edge = (p1, p2)
                 best_t = t
-  
+
+        if return_distance:
+            return closest_edge[0], closest_edge[1], best_t, min_dist_sq
         return closest_edge[0], closest_edge[1], best_t
