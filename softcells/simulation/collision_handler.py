@@ -39,6 +39,28 @@ class CollisionHandler:
                     return True
 
         return False
+    
+    def check_bbs_total_overlap(self, shape_a, shape_b):
+        """
+        Check if the bounding boxes of two shapes overlap, considering periodic boundaries.
+        """
+        (min_ax, max_ax, min_ay, max_ay), windings_a = shape_a._get_bounding_box_with_windings()
+        (min_bx, max_bx, min_by, max_by), windings_b = shape_b._get_bounding_box_with_windings()
+
+        world_width = shape_a.points[0].world_width
+        world_height = shape_a.points[0].world_height
+
+        for wa_x, wa_y in windings_a:
+            for wb_x, wb_y in windings_b:
+                dx = (wb_x - wa_x) * world_width
+                dy = (wb_y - wa_y) * world_height
+
+                # Check for overlap in the x-axis
+                if (min_ax < max_bx - dx and max_ax > min_bx - dx and
+                    min_ay < max_by - dy and max_ay > min_by - dy):
+                    return True
+
+        return False
 
     def handle_collisions(self, shapes):
         """
@@ -56,23 +78,60 @@ class CollisionHandler:
             for j in range(i + 1, num_shapes):
                 shape_b = shapes[j]
 
+                if shape_a.identity != shape_b.identity and shape_a.cell_unique_id != shape_b.cell_unique_id:
+                    continue
+
                 bbs_overlap = self.check_bbs_overlap(shape_a, shape_b)
                 if not bbs_overlap:
                     continue
+                
+                if shape_a.identity == shape_b.identity:
 
-                # Test points of A inside B
-                for point in shape_a.get_points():
-                    is_inside, at_windings = shape_b.is_point_inside(point)
-                    if is_inside:
-                        self.resolve_collision(point, shape_b, at_windings=at_windings)
 
-                # Test points of B inside A
-                for point in shape_b.get_points():
-                    is_inside, at_windings = shape_a.is_point_inside(point)
-                    if is_inside:
-                        self.resolve_collision(point, shape_a, at_windings=at_windings)
+                    # Test points of A inside B
+                    for point in shape_a.get_points():
+                        is_inside, at_windings = shape_b.is_point_inside(point)
+                        if is_inside:
+                            self.resolve_collision(point, shape_b, at_windings=at_windings)
 
-    def resolve_collision(self, colliding_point, shape, at_windings):
+                    # Test points of B inside A
+                    for point in shape_b.get_points():
+                        is_inside, at_windings = shape_a.is_point_inside(point)
+                        if is_inside:
+                            self.resolve_collision(point, shape_a, at_windings=at_windings)
+                else:
+                    if shape_a.cell_unique_id == shape_b.cell_unique_id:
+
+                        shape_mem = shape_a if shape_a.identity == 0 else shape_b
+                        shape_nuc = shape_b if shape_a.identity == 0 else shape_a
+
+
+                        # test point membrane inside nucleus
+                        for point in shape_mem.get_points():
+                            is_inside, at_windings = shape_nuc.is_point_inside(point)
+                            if is_inside:
+                                self.resolve_collision(point, shape_nuc, at_windings=at_windings)
+                        # test point nucleus outside membrane
+                        # for point in shape_nuc.get_points():
+                        #     is_outside, at_windings = shape_mem.is_point_inside(point, outside=True)
+                        #     if is_outside:
+                        #         self.resolve_collision(point, shape_mem, at_windings=at_windings, invert=False)
+                   
+                    # # Test points of A inside B
+                    #     for point in shape_a.get_points():
+                    #         is_inside, at_windings = shape_b.is_point_inside(point)
+                    #         if is_inside:
+                    #             self.resolve_collision(point, shape_b, at_windings=at_windings, inward_normal=True)
+                    #     # Test points of B inside A
+                    #     for point in shape_b.get_points():
+                    #         is_inside, at_windings = shape_a.is_point_inside(point)
+                    #         if is_inside:
+                    #             self.resolve_collision(point, shape_a, at_windings=at_windings, inward_normal=True)
+
+                    
+
+
+    def resolve_collision(self, colliding_point, shape, at_windings, invert=False):
         """
         Resolves a collision between a point and a shape.
         Moves points to resolve overlap and updates velocities for bounce.
@@ -80,6 +139,9 @@ class CollisionHandler:
         Args:
             colliding_point: The point mass that is colliding
             shape: The shape that the point is colliding with
+            at_windings: The winding information for periodic boundaries
+            invert: If True, pushes the colliding point inward (for containment scenarios)
+                   If False, pushes the colliding point outward (normal collision)
         """
         edge_p1, edge_p2, t = shape.find_closest_edge(colliding_point, at_windings=at_windings)
 
@@ -123,15 +185,26 @@ class CollisionHandler:
 
         move_dist = (correction_depth / total_inv_mass) * self.correction_percent
         
-        # Move the colliding point OUTWARD (in the opposite direction of the inward normal)
-        colliding_point.x -= normal_x * move_dist * inv_mass_p
-        colliding_point.y -= normal_y * move_dist * inv_mass_p
-        
-        # Move the edge points of the shape OUTWARD to push back
-        edge_p1.x += normal_x * move_dist * inv_mass_e1 * (1 - t)
-        edge_p1.y += normal_y * move_dist * inv_mass_e1 * (1 - t)
-        edge_p2.x += normal_x * move_dist * inv_mass_e2 * t
-        edge_p2.y += normal_y * move_dist * inv_mass_e2 * t
+        if invert:
+            # INVERTED: Move the colliding point INWARD (in the direction of the inward normal)
+            colliding_point.x += normal_x * move_dist * inv_mass_p
+            colliding_point.y += normal_y * move_dist * inv_mass_p
+            
+            # Move the edge points of the shape INWARD 
+            edge_p1.x -= normal_x * move_dist * inv_mass_e1 * (1 - t)
+            edge_p1.y -= normal_y * move_dist * inv_mass_e1 * (1 - t)
+            edge_p2.x -= normal_x * move_dist * inv_mass_e2 * t
+            edge_p2.y -= normal_y * move_dist * inv_mass_e2 * t
+        else:
+            # NORMAL: Move the colliding point OUTWARD (in the opposite direction of the inward normal)
+            colliding_point.x -= normal_x * move_dist * inv_mass_p
+            colliding_point.y -= normal_y * move_dist * inv_mass_p
+            
+            # Move the edge points of the shape OUTWARD to push back
+            edge_p1.x += normal_x * move_dist * inv_mass_e1 * (1 - t)
+            edge_p1.y += normal_y * move_dist * inv_mass_e1 * (1 - t)
+            edge_p2.x += normal_x * move_dist * inv_mass_e2 * t
+            edge_p2.y += normal_y * move_dist * inv_mass_e2 * t
 
         # --- 2. VELOCITY RESOLUTION ---
         edge_vx = edge_p1.vx * (1 - t) + edge_p2.vx * t
@@ -148,12 +221,23 @@ class CollisionHandler:
         # Impulse magnitude (will be positive since vel_along_normal is negative)
         impulse_j = -(1 + self.restitution) * vel_along_normal / total_inv_mass
         
-        # Apply impulse to push the colliding point OUTWARD (-n)
-        colliding_point.vx -= (impulse_j * inv_mass_p) * normal_x
-        colliding_point.vy -= (impulse_j * inv_mass_p) * normal_y
+        if invert:
+            # INVERTED: Apply impulse to push the colliding point INWARD (+n)
+            colliding_point.vx += (impulse_j * inv_mass_p) * normal_x
+            colliding_point.vy += (impulse_j * inv_mass_p) * normal_y
 
-        # Apply impulse to push the edge points INWARD (+n)
-        edge_p1.vx += (impulse_j * inv_mass_e1 * (1 - t)) * normal_x
-        edge_p1.vy += (impulse_j * inv_mass_e1 * (1 - t)) * normal_y
-        edge_p2.vx += (impulse_j * inv_mass_e2 * t) * normal_x
-        edge_p2.vy += (impulse_j * inv_mass_e2 * t) * normal_y 
+            # Apply impulse to push the edge points OUTWARD (-n)
+            edge_p1.vx -= (impulse_j * inv_mass_e1 * (1 - t)) * normal_x
+            edge_p1.vy -= (impulse_j * inv_mass_e1 * (1 - t)) * normal_y
+            edge_p2.vx -= (impulse_j * inv_mass_e2 * t) * normal_x
+            edge_p2.vy -= (impulse_j * inv_mass_e2 * t) * normal_y
+        else:
+            # NORMAL: Apply impulse to push the colliding point OUTWARD (-n)
+            colliding_point.vx -= (impulse_j * inv_mass_p) * normal_x
+            colliding_point.vy -= (impulse_j * inv_mass_p) * normal_y
+
+            # Apply impulse to push the edge points INWARD (+n)
+            edge_p1.vx += (impulse_j * inv_mass_e1 * (1 - t)) * normal_x
+            edge_p1.vy += (impulse_j * inv_mass_e1 * (1 - t)) * normal_y
+            edge_p2.vx += (impulse_j * inv_mass_e2 * t) * normal_x
+            edge_p2.vy += (impulse_j * inv_mass_e2 * t) * normal_y 

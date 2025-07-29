@@ -248,7 +248,7 @@ class Shape:
     Supports pressure-based physics to maintain shape integrity.
     """
     
-    def __init__(self, points=None):
+    def __init__(self, points=None, identity=0):
         """
         Initialize a shape with a list of point masses.
         
@@ -282,6 +282,10 @@ class Shape:
 
     
     
+    def set_identity(self, identity):
+        """Set a unique identifier for this shape."""
+        self.identity = identity
+
     def add_point(self, point):
         """Add a point mass to this shape."""
         self.points.append(point)
@@ -307,6 +311,9 @@ class Shape:
             point.vx *= self.damping_factor
             point.vy *= self.damping_factor
     
+    def set_cell_unique_id(self, cell_unique_id):
+        self.cell_unique_id = cell_unique_id
+
     def set_color(self, color):
         """Set the rendering color for this shape."""
         self.color = color
@@ -488,15 +495,16 @@ class Shape:
         unique_windings = list(set(all_windings))
 
         return (min(x_coords), max(x_coords), min(y_coords), max(y_coords)), unique_windings
-    
+
     @line_profiler.profile
-    def is_point_inside(self, test_point):
+    def is_point_inside(self, test_point, outside=False):
         """
         Check if a point is inside this shape using the ray-casting algorithm.
         Optimized with Numba for performance.
         
         Args:
             test_point (PointMass): The point to check.
+            outside (bool): If True, checks if the point is outside the shape.
         
         Returns:
             bool: True if the point is inside, False otherwise.
@@ -548,11 +556,15 @@ class Shape:
                 shape_points_x, shape_points_y
             )
 
-            if intersections % 2 == 1:
-                return True, (winding_x, winding_y)  # Point is inside the shape
+            if outside:
+                if intersections % 2 == 0:
+                    return True, (winding_x, winding_y)
+            else:
+                if intersections % 2 == 1:
+                    return True, (winding_x, winding_y)  # Point is inside the shape
 
         return False, (None, None)  # Point is outside the shape
-
+    
 
     def find_closest_edge(self, test_point, at_windings):
         """

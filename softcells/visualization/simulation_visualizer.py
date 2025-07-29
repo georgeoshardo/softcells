@@ -94,9 +94,24 @@ class SimulationVisualizer:
                         point_mass=1.0, 
                         pressure=GLOBAL_PRESSURE_AMOUNT,
                         spring_stiffness=1150.0, 
-                        spring_damping=10.0
+                        spring_damping=10.0,
+                        identity=0
                     )
                     circle.set_color((255, 255, 100))  # Yellow
+                elif event.key == pygame.K_v:
+                    # Add a new circle shape at mouse position
+                    mouse_x, mouse_y = pygame.mouse.get_pos()
+                    circle1, circle2 = self.physics_engine.add_cell_shape(
+                        mouse_x, mouse_y, 50, 
+                        num_points=50, 
+                        point_mass=1.0, 
+                        pressure=GLOBAL_PRESSURE_AMOUNT,
+                        spring_stiffness=1150.0, 
+                        spring_damping=10.0
+                    )
+                    circle1.set_color((255, 255, 100))  # Yellow
+                    circle2.set_color((255, 100, 100))  # Red
+
                 elif event.key == pygame.K_p:
                     # Toggle pressure physics for all shapes
                     self.physics_engine.toggle_pressure_for_all_shapes()
@@ -173,8 +188,20 @@ class SimulationVisualizer:
                     # Toggle trail display
                     self.show_trails = not self.show_trails
                 elif event.key == pygame.K_b:
+                    # Add a new circle shape at mouse position
+                    mouse_x, mouse_y = pygame.mouse.get_pos()
+                    circle = self.physics_engine.add_circle_shape(
+                        mouse_x, mouse_y, 10, 
+                        num_points=50, 
+                        point_mass=1.0, 
+                        pressure=GLOBAL_PRESSURE_AMOUNT,
+                        spring_stiffness=1150.0, 
+                        spring_damping=10.0,
+                        identity=1
+                    )
+                    circle.set_color((255, 100, 100))  # Red
                     # Toggle bounding box display
-                    self.show_bounding_boxes = not self.show_bounding_boxes
+                    # self.show_bounding_boxes = not self.show_bounding_boxes
         return True
     
     def _reset_trails(self):
