@@ -11,7 +11,7 @@ from ..core import Spring, PointMass
 from ..utils.geometry import vectorized_orientations, on_segment
 from ..config import (
     DEFAULT_SHAPE_COLOR, DEFAULT_LINE_WIDTH, COLLISION_SLOP, 
-    COLLISION_CORRECTION_PERCENT, COLLISION_RESTITUTION, DEFAULT_DT
+    COLLISION_CORRECTION_PERCENT, COLLISION_RESTITUTION, DEFAULT_DT, OU_TAU
 )
 fastmath = False
 parallel = False
@@ -489,8 +489,8 @@ class Shape:
 
         # see Gillespie, PRE 95
         # "Exact numerical simulation of the Ornstein-Uhlenbeck process and its integral"
-        deterministic_ou_term = np.exp(-DEFAULT_DT/self.persistence_time)
-        random_ou_term = random_noise * np.sqrt(1-np.exp(-2*DEFAULT_DT/self.persistence_time))
+        deterministic_ou_term = np.exp(-DEFAULT_DT/0.1)
+        random_ou_term = random_noise * np.sqrt(1-np.exp(-2*DEFAULT_DT/0.1))
 
         self.random_force = self.random_force * deterministic_ou_term + random_ou_term
         ###
