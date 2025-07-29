@@ -13,6 +13,8 @@ from ..config import (
 )
 from .base_shape import Shape
 
+import numpy as np
+
 
 class CircleShape(Shape):
     """
@@ -25,7 +27,7 @@ class CircleShape(Shape):
                  spring_stiffness=DEFAULT_CIRCLE_SPRING_STIFFNESS, 
                  spring_damping=DEFAULT_CIRCLE_SPRING_DAMPING, 
                  drag_coefficient=DEFAULT_GLOBAL_DRAG_COEFFICIENT, 
-                 drag_type=DEFAULT_DRAG_TYPE):
+                 drag_type=DEFAULT_DRAG_TYPE, cell_unique_id=0, identity=0):
         """
         Create a circular shape with evenly distributed point masses.
         
@@ -40,14 +42,15 @@ class CircleShape(Shape):
             spring_damping (float): Damping of springs connecting points
             drag_coefficient (float): Viscous drag coefficient for all points
             drag_type (str): Type of drag - "linear" or "quadratic"
+            identity (int): Unique identifier for the shape
         """
         super().__init__()
         
         # Generate points around the circle
         for i in range(num_points):
             angle = -(2 * math.pi * i) / num_points
-            x = center_x + radius * math.cos(angle)
-            y = center_y + radius * math.sin(angle)
+            x = center_x + radius * math.cos(angle) + np.random.rand()
+            y = center_y + radius * math.sin(angle) + np.random.rand()
             
             point = PointMass(x, y, point_mass, drag_coefficient, 
                               world_height=DEFAULT_HEIGHT, world_width=DEFAULT_WIDTH)
@@ -65,3 +68,7 @@ class CircleShape(Shape):
         
         # Set a distinct color for circle shapes
         self.set_color(CIRCLE_COLOR) 
+
+        # Set identity
+        self.set_identity(identity)
+        self.set_cell_unique_id(cell_unique_id)

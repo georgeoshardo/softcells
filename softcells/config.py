@@ -3,7 +3,7 @@ Configuration settings and constants for the soft body simulation.
 """
 
 # Global physics constants
-GLOBAL_PRESSURE_AMOUNT = 300
+GLOBAL_PRESSURE_AMOUNT = 3500
 
 # Simulation settings
 DEFAULT_WIDTH = 1500

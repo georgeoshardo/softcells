@@ -3,8 +3,28 @@ Point mass physics implementation using Verlet integration.
 """
 
 import math
+from numba import njit
 from ..utils import pbc_operator, winding_vector
 
+@njit(cache=True, fastmath=True, inline='always')
+def _compute_winding_x(x, world_width):
+    """Fast computation of x winding number."""
+    return int(x // world_width)
+
+@njit(cache=True, fastmath=True, inline='always')
+def _compute_winding_y(y, world_height):
+    """Fast computation of y winding number."""
+    return int(y // world_height)
+
+@njit(cache=True, fastmath=True, inline='always')
+def _compute_world_x(x, world_width):
+    """Fast computation of world x position."""
+    return x % world_width
+
+@njit(cache=True, fastmath=True, inline='always')
+def _compute_world_y(y, world_height):
+    """Fast computation of world y position."""
+    return y % world_height
 
 class PointMass:
     """
@@ -51,34 +71,47 @@ class PointMass:
         self.world_height = world_height
         self.world_width = world_width
 
+        # Cache winding numbers and world coordinates
+        self._cached_winding_x = _compute_winding_x(x, world_width)
+        self._cached_winding_y = _compute_winding_y(y, world_height)
+        self._cached_x_world = _compute_world_x(x, world_width)
+        self._cached_y_world = _compute_world_y(y, world_height)
+        self._position_dirty = False
+
+    def _update_cached_values(self):
+        """Update cached winding and world values when position changes."""
+        if self._position_dirty:
+            self._cached_winding_x = _compute_winding_x(self.x, self.world_width)
+            self._cached_winding_y = _compute_winding_y(self.y, self.world_height)
+            self._cached_x_world = _compute_world_x(self.x, self.world_width)
+            self._cached_y_world = _compute_world_y(self.y, self.world_height)
+            self._position_dirty = False
+
     @property
     def winding_x(self):
-        """
-        x position for periodic boundary conditions.
-        """
-        return int(self.x // self.world_width)
+        self._update_cached_values()
+        return self._cached_winding_x
 
     @property
     def winding_y(self):
-        """
-        y position for periodic boundary conditions.
-        """
-        return int(self.y // self.world_height)
+        self._update_cached_values()
+        return self._cached_winding_y
+    
+    def get_winding_x(self):
+        return _compute_winding_x(self.x, self.world_width)
+
+    def get_winding_y(self):
+        return _compute_winding_y(self.y, self.world_height)
 
     @property
     def x_world(self):
-        """
-        world x position for periodic boundary conditions.
-        """
-        return self.x % self.world_width
+        self._update_cached_values()
+        return self._cached_x_world
 
     @property
     def y_world(self):
-        """
-        world y position for periodic boundary conditions.
-        """
-        return self.y % self.world_height
-    
+        self._update_cached_values()
+        return self._cached_y_world
     def apply_force(self, fx, fy):
         """
         Apply a force to this point mass.
@@ -171,7 +204,7 @@ class PointMass:
         # Clear forces for next frame
         self.force_x = 0.0
         self.force_y = 0.0
-
+        self._position_dirty = True
     
     
     def get_position(self):
@@ -189,6 +222,7 @@ class PointMass:
         self.prev_y = self.y
         self.x = x
         self.y = y
+        self._position_dirty = True
     
     def set_velocity(self, vx, vy):
         """Set the velocity directly by adjusting previous position."""

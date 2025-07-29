@@ -36,7 +36,28 @@ class CollisionHandler:
                 # Check for overlap in the x-axis
                 if (min_ax < max_bx - dx and max_ax > min_bx - dx and
                     min_ay < max_by - dy and max_ay > min_by - dy):
-                    print("hi")
+                    return True
+
+        return False
+    
+    def check_bbs_total_overlap(self, shape_a, shape_b):
+        """
+        Check if the bounding boxes of two shapes overlap, considering periodic boundaries.
+        """
+        (min_ax, max_ax, min_ay, max_ay), windings_a = shape_a._get_bounding_box_with_windings()
+        (min_bx, max_bx, min_by, max_by), windings_b = shape_b._get_bounding_box_with_windings()
+
+        world_width = shape_a.points[0].world_width
+        world_height = shape_a.points[0].world_height
+
+        for wa_x, wa_y in windings_a:
+            for wb_x, wb_y in windings_b:
+                dx = (wb_x - wa_x) * world_width
+                dy = (wb_y - wa_y) * world_height
+
+                # Check for overlap in the x-axis
+                if (min_ax < max_bx - dx and max_ax > min_bx - dx and
+                    min_ay < max_by - dy and max_ay > min_by - dy):
                     return True
 
         return False
@@ -51,11 +72,15 @@ class CollisionHandler:
         num_shapes = len(shapes)
         if num_shapes < 2:
             return
+        
+        all_membranes = [shape for shape in shapes if shape.identity == 0]
+        all_nuclei = [shape for shape in shapes if shape.identity == 1]
 
-        for i in range(num_shapes):
-            shape_a = shapes[i]
-            for j in range(i + 1, num_shapes):
-                shape_b = shapes[j]
+
+        for i in range(len(all_membranes)):
+            shape_a = all_membranes[i]
+            for j in range(i + 1, len(all_membranes)):
+                shape_b = all_membranes[j]
 
                 bbs_overlap = self.check_bbs_overlap(shape_a, shape_b)
                 if not bbs_overlap:
@@ -73,6 +98,25 @@ class CollisionHandler:
                     if is_inside:
                         self.resolve_collision(point, shape_a, at_windings=at_windings)
 
+        for i in range(len(all_nuclei)):
+            shape_nuc = all_nuclei[i]
+            for j in range(len(all_membranes)):
+                shape_mem = all_membranes[j]
+
+                if shape_mem.identity == 0 and shape_mem.cell_unique_id == shape_nuc.cell_unique_id:
+
+                    # Test points of membrane inside nucleus
+                    for point in shape_mem.get_points():
+                       is_inside, at_windings = shape_nuc.is_point_inside(point)
+                       if is_inside:
+                           self.resolve_collision(point, shape_nuc, at_windings=at_windings)
+
+                    for point in shape_nuc.get_points():
+                        is_outside, at_windings = shape_mem.is_point_outside(point)
+                        if is_outside:
+                            self.resolve_collision(point, shape_mem, at_windings=at_windings)
+
+
     def resolve_collision(self, colliding_point, shape, at_windings):
         """
         Resolves a collision between a point and a shape.
@@ -81,6 +125,7 @@ class CollisionHandler:
         Args:
             colliding_point: The point mass that is colliding
             shape: The shape that the point is colliding with
+            at_windings: The winding information for periodic boundaries
         """
         edge_p1, edge_p2, t = shape.find_closest_edge(colliding_point, at_windings=at_windings)
 
@@ -89,9 +134,18 @@ class CollisionHandler:
 
         winding_x, winding_y = at_windings
         
+        # Safety check: limit winding differences to prevent explosive forces
+        # This prevents issues when objects cross boundaries
+        winding_diff_x = winding_x - colliding_point.winding_x
+        winding_diff_y = winding_y - colliding_point.winding_y
+        
+        # Limit winding differences to [-1, 1] to handle only immediate boundary crossings
+        winding_diff_x = max(-1, min(1, winding_diff_x))
+        winding_diff_y = max(-1, min(1, winding_diff_y))
+        
         colliding_point_in_shape_referential = (
-            colliding_point.x + (winding_x - colliding_point.winding_x) * colliding_point.world_width,
-            colliding_point.y + (winding_y - colliding_point.winding_y) * colliding_point.world_height
+            colliding_point.x + winding_diff_x * colliding_point.world_width,
+            colliding_point.y + winding_diff_y * colliding_point.world_height
         )
         
         closest_x = (1-t) * edge_p1.x + t * edge_p2.x
@@ -103,7 +157,10 @@ class CollisionHandler:
         penetration_vec_y = colliding_point_in_shape_referential[1] - closest_y
         penetration_depth = math.sqrt(penetration_vec_x**2 + penetration_vec_y**2)
         
-        if penetration_depth < 0.001:
+        # Additional safety check: ignore collisions with unreasonably large penetration depths
+        # This prevents explosive behavior when calculations go wrong
+        max_reasonable_depth = min(colliding_point.world_width, colliding_point.world_height) * 0.5
+        if penetration_depth < 0.001 or penetration_depth > max_reasonable_depth:
             return
 
         # The normal points INWARD into the shape.
@@ -124,7 +181,8 @@ class CollisionHandler:
 
         move_dist = (correction_depth / total_inv_mass) * self.correction_percent
         
-        # Move the colliding point OUTWARD (in the opposite direction of the inward normal)
+
+        # NORMAL: Move the colliding point OUTWARD (in the opposite direction of the inward normal)
         colliding_point.x -= normal_x * move_dist * inv_mass_p
         colliding_point.y -= normal_y * move_dist * inv_mass_p
         
@@ -149,7 +207,8 @@ class CollisionHandler:
         # Impulse magnitude (will be positive since vel_along_normal is negative)
         impulse_j = -(1 + self.restitution) * vel_along_normal / total_inv_mass
         
-        # Apply impulse to push the colliding point OUTWARD (-n)
+
+        # NORMAL: Apply impulse to push the colliding point OUTWARD (-n)
         colliding_point.vx -= (impulse_j * inv_mass_p) * normal_x
         colliding_point.vy -= (impulse_j * inv_mass_p) * normal_y
 

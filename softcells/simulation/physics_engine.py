@@ -10,7 +10,7 @@ from ..config import (
     DEFAULT_DRAG_TYPE, GLOBAL_PRESSURE_AMOUNT, PERIODIC, DEFAULT_WIDTH, DEFAULT_HEIGHT
 )
 from .collision_handler import CollisionHandler
-
+import numpy as np
 
 class PhysicsEngine:
     """
@@ -52,6 +52,8 @@ class PhysicsEngine:
         
         # Initialize scene
         self.create_initial_scene()
+
+        self.current_cell_unique_id = 0
     
     def create_initial_scene(self):
         """Create initial physics objects for the simulation."""
@@ -86,9 +88,62 @@ class PhysicsEngine:
         self.points.append(point)
         return point
     
-    def add_circle_shape(self, center_x, center_y, radius, num_points=50, 
+    def add_cell_shape(self, center_x, center_y, radius, num_points=50, 
                         point_mass=1.0, pressure=None, spring_stiffness=1150.0, 
                         spring_damping=10.0):
+        """
+        Add a circle shape to the simulation.
+        
+        Args:
+            center_x (float): X position of center
+            center_y (float): Y position of center
+            radius (float): Radius of the circle
+            num_points (int): Number of points on the circle
+            point_mass (float): Mass of each point
+            pressure (float): Pressure amount (None for default)
+            spring_stiffness (float): Spring stiffness
+            spring_damping (float): Spring damping
+            
+        Returns:
+            CircleShape: The created circle shape
+        """
+        if pressure is None:
+            pressure = GLOBAL_PRESSURE_AMOUNT
+            
+        circle_mem = CircleShape(
+            center_x, center_y, radius,
+            num_points=num_points,
+            point_mass=point_mass,
+            pressure=pressure,
+            spring_stiffness=spring_stiffness,
+            spring_damping=spring_damping,
+            drag_coefficient=self.global_drag_coefficient,
+            drag_type=self.drag_type,
+            identity=0,
+            cell_unique_id=self.current_cell_unique_id
+        )
+        self.shapes.append(circle_mem)
+
+        circle_nuc = CircleShape(
+            center_x+np.random.rand(), center_y+np.random.rand(), radius/1.9,
+            num_points=num_points,
+            point_mass=point_mass,
+            pressure=pressure*2,
+            spring_stiffness=spring_stiffness*2,
+            spring_damping=spring_damping,
+            drag_coefficient=self.global_drag_coefficient,
+            drag_type=self.drag_type,
+            identity=1,
+            cell_unique_id=self.current_cell_unique_id
+        )
+        self.shapes.append(circle_nuc)
+
+        self.current_cell_unique_id += 1
+        return circle_mem, circle_nuc
+
+    def add_circle_shape(self, center_x, center_y, radius, num_points=50, 
+                        point_mass=1.0, pressure=None, spring_stiffness=1150.0, 
+                        spring_damping=10.0, identity=0):
         """
         Add a circle shape to the simulation.
         
@@ -116,9 +171,12 @@ class PhysicsEngine:
             spring_stiffness=spring_stiffness,
             spring_damping=spring_damping,
             drag_coefficient=self.global_drag_coefficient,
-            drag_type=self.drag_type
+            drag_type=self.drag_type,
+            identity=identity,
+            cell_unique_id=self.current_cell_unique_id
         )
         self.shapes.append(circle)
+        self.current_cell_unique_id += 1
         return circle
     
     def remove_all_points(self):
