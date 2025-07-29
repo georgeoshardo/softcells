@@ -36,7 +36,6 @@ class CollisionHandler:
                 # Check for overlap in the x-axis
                 if (min_ax < max_bx - dx and max_ax > min_bx - dx and
                     min_ay < max_by - dy and max_ay > min_by - dy):
-                    print("hi")
                     return True
 
         return False

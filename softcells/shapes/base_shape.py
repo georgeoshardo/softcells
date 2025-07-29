@@ -4,6 +4,8 @@ This module contains no rendering dependencies.
 """
 
 import math
+import numpy as np
+from numba import njit
 
 from ..core import Spring, PointMass
 from ..utils.geometry import vectorized_orientations, on_segment
@@ -11,6 +13,69 @@ from ..config import (
     DEFAULT_SHAPE_COLOR, DEFAULT_LINE_WIDTH, COLLISION_SLOP, 
     COLLISION_CORRECTION_PERCENT, COLLISION_RESTITUTION
 )
+
+
+@njit(cache=True)
+def _ray_cast_intersections_simple(test_point_x, test_point_y, outside_point_x, outside_point_y, 
+                                  shape_points_x, shape_points_y):
+    """
+    Numba-compiled ray casting algorithm for point-in-polygon testing.
+    Uses simple arrays instead of numpy arrays for better compatibility.
+    
+    Args:
+        test_point_x, test_point_y: Coordinates of the test point
+        outside_point_x, outside_point_y: Coordinates of a point outside the shape
+        shape_points_x, shape_points_y: Lists/tuples of shape vertices coordinates
+    
+    Returns:
+        int: Number of intersections between ray and shape edges
+    """
+    intersections = 0
+    num_points = len(shape_points_x)
+    
+    # The ray is from test_point to outside_point
+    p1_x, p1_y = test_point_x, test_point_y
+    q1_x, q1_y = outside_point_x, outside_point_y
+    
+    for i in range(num_points):
+        edge_start_x = shape_points_x[i]
+        edge_start_y = shape_points_y[i] 
+        edge_end_x = shape_points_x[(i + 1) % num_points]
+        edge_end_y = shape_points_y[(i + 1) % num_points]
+        
+        p2_x, p2_y = edge_start_x, edge_start_y
+        q2_x, q2_y = edge_end_x, edge_end_y
+        
+        # Inline orientation calculations for better performance
+        # o1 = orientation((p1_x, p1_y), (q1_x, q1_y), (p2_x, p2_y))
+        val1 = (q1_y - p1_y) * (p2_x - q1_x) - (q1_x - p1_x) * (p2_y - q1_y)
+        o1 = 0 if val1 == 0 else (1 if val1 > 0 else 2)
+        
+        # o2 = orientation((p1_x, p1_y), (q1_x, q1_y), (q2_x, q2_y))  
+        val2 = (q1_y - p1_y) * (q2_x - q1_x) - (q1_x - p1_x) * (q2_y - q1_y)
+        o2 = 0 if val2 == 0 else (1 if val2 > 0 else 2)
+        
+        # o3 = orientation((p2_x, p2_y), (q2_x, q2_y), (p1_x, p1_y))
+        val3 = (q2_y - p2_y) * (p1_x - q2_x) - (q2_x - p2_x) * (p1_y - q2_y)
+        o3 = 0 if val3 == 0 else (1 if val3 > 0 else 2)
+        
+        # o4 = orientation((p2_x, p2_y), (q2_x, q2_y), (q1_x, q1_y))
+        val4 = (q2_y - p2_y) * (q1_x - q2_x) - (q2_x - p2_x) * (q1_y - q2_y)
+        o4 = 0 if val4 == 0 else (1 if val4 > 0 else 2)
+        
+        # General case of intersection
+        if o1 != o2 and o3 != o4:
+            intersections += 1
+            continue
+            
+        # Special case for collinear points
+        if o3 == 0:
+            # Check if q (p1) lies on segment pr (p2, q2)
+            if (p1_x <= max(p2_x, q2_x) and p1_x >= min(p2_x, q2_x) and
+                p1_y <= max(p2_y, q2_y) and p1_y >= min(p2_y, q2_y)):
+                intersections += 1
+    
+    return intersections
 
 
 class Shape:
@@ -297,6 +362,7 @@ class Shape:
     def is_point_inside(self, test_point):
         """
         Check if a point is inside this shape using the ray-casting algorithm.
+        Optimized with Numba for performance.
         
         Args:
             test_point (PointMass): The point to check.
@@ -307,50 +373,29 @@ class Shape:
         if len(self.points) < 3:
             return False
 
-        # Get a point guaranteed to be outside the shape's bounding box.
-        # (min_x, max_x, min_y, max_y), (min_wx, max_wx, min_wy, max_wy) = self._get_bounding_box()
-
         (bb1, bb2, bb3, bb4), unique_windings = self._get_bounding_box_points()
 
-        for winding_x, winding_y in unique_windings:
+        # Pre-compute shape coordinates as simple lists for Numba
+        shape_points_x = [p.x for p in self.points]
+        shape_points_y = [p.y for p in self.points]
 
-            test_point_in_shape_referential = (
-                test_point.x + (winding_x - test_point.winding_x) * test_point.world_width,
+        for winding_x, winding_y in unique_windings:
+            test_point_in_shape_referential_x = (
+                test_point.x + (winding_x - test_point.winding_x) * test_point.world_width
+            )
+            test_point_in_shape_referential_y = (
                 test_point.y + (winding_y - test_point.winding_y) * test_point.world_height
             )
 
-            outside_point = (
-                bb3.x + 10,
-                test_point_in_shape_referential[1] 
-            )
+            outside_point_x = bb3.x + 10
+            outside_point_y = test_point_in_shape_referential_y
             
-            intersections = 0
-            num_points = len(self.points)
-
-            # The ray is from test_point to outside_point.
-            p1 = test_point_in_shape_referential
-            q1 = outside_point
-
-            for i in range(num_points):
-                edge_start = self.points[i]
-                edge_end = self.points[(i + 1) % num_points]
-                
-                p2 = (edge_start.x, edge_start.y)
-                q2 = (edge_end.x, edge_end.y)
-
-                # Check for intersection between the ray and the current edge.
-                # This is a standard line segment intersection algorithm.
-
-                o1, o2, o3, o4 = vectorized_orientations(p1, q1, p2, q2)
-
-                # General case of intersection
-                if o1 != o2 and o3 != o4:
-                    intersections += 1
-                    continue
-
-                # Special Cases for collinear points
-                if o3 == 0 and on_segment(p2, p1, q2):
-                    intersections += 1
+            # Use the Numba-compiled function for the expensive ray-casting computation
+            intersections = _ray_cast_intersections_simple(
+                test_point_in_shape_referential_x, test_point_in_shape_referential_y,
+                outside_point_x, outside_point_y,
+                shape_points_x, shape_points_y
+            )
 
             if intersections % 2 == 1:
                 return True, (winding_x, winding_y)  # Point is inside the shape
