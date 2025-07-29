@@ -326,7 +326,6 @@ class Shape:
             p1 = test_point_in_shape_referential
             q1 = outside_point
 
-            # Iterate over each edge of the shape.
             for i in range(num_points):
                 edge_start = self.points[i]
                 edge_end = self.points[(i + 1) % num_points]
@@ -334,11 +333,8 @@ class Shape:
                 p2 = (edge_start.x, edge_start.y)
                 q2 = (edge_end.x, edge_end.y)
 
-            # General case of intersection
-            # https://www.algotree.org/images/Line_Segment_Intersection_General_Case.svg
-            if o1 != o2 and o3 != o4:
-                intersections += 1
-                continue
+                # Check for intersection between the ray and the current edge.
+                # This is a standard line segment intersection algorithm.
 
                 o1, o2, o3, o4 = vectorized_orientations(p1, q1, p2, q2)
 
@@ -355,6 +351,7 @@ class Shape:
                 return True, (winding_x, winding_y)  # Point is inside the shape
 
         return False, (None, None)  # Point is outside the shape
+
 
     def find_closest_edge(self, test_point, at_windings):
         """
