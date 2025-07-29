@@ -241,10 +241,88 @@ class Shape:
             return 0, 0, 0, 0
         x_coords = [p.x for p in self.points]
         y_coords = [p.y for p in self.points]
+        return min(x_coords), max(x_coords), min(y_coords), max(y_coords)
+    
+    def _get_bounding_box_with_windings(self):
+        """Get the min and max coordinates of the shape including winding data."""
+        if not self.points:
+            return (0, 0, 0, 0), (0, 0, 0, 0)
+        x_coords = [p.x for p in self.points]
+        y_coords = [p.y for p in self.points]
         windings_x = [p.winding_x for p in self.points]
         windings_y = [p.winding_y for p in self.points]
         return (min(x_coords), max(x_coords), min(y_coords), max(y_coords)), \
             (min(windings_x), max(windings_x), min(windings_y), max(windings_y))
+
+    def _get_bounding_box_world(self):
+        """Get the min and max coordinates of the shape using world coordinates (for PBC)."""
+        if not self.points:
+            return 0, 0, 0, 0
+        
+        if len(self.points) == 1:
+            # Single point case
+            x = self.points[0].x_world
+            y = self.points[0].y_world
+            return x, x, y, y
+            
+        # For shapes that cross periodic boundaries, we need to calculate
+        # relative positions to avoid spanning the entire world
+        reference_point = self.points[0]
+        relative_x_coords = [0]  # Reference point is at relative position 0
+        relative_y_coords = [0]
+        
+        max_relative_x = 0
+        min_relative_x = 0
+        max_relative_y = 0
+        min_relative_y = 0
+        
+        for i in range(1, len(self.points)):
+            point = self.points[i]
+            
+            # Calculate position relative to reference point, accounting for PBC
+            dx_raw = point.x_world - reference_point.x_world
+            dy_raw = point.y_world - reference_point.y_world
+            
+            # Handle periodic boundary crossing
+            # If the raw difference is larger than half the world size,
+            # the shortest path goes through the boundary
+            world_width = point.world_width
+            world_height = point.world_height
+            
+            if dx_raw > world_width / 2:
+                dx = dx_raw - world_width
+            elif dx_raw < -world_width / 2:
+                dx = dx_raw + world_width
+            else:
+                dx = dx_raw
+                
+            if dy_raw > world_height / 2:
+                dy = dy_raw - world_height
+            elif dy_raw < -world_height / 2:
+                dy = dy_raw + world_height
+            else:
+                dy = dy_raw
+            
+            # Track relative extents
+            max_relative_x = max(max_relative_x, dx)
+            min_relative_x = min(min_relative_x, dx)
+            max_relative_y = max(max_relative_y, dy)
+            min_relative_y = min(min_relative_y, dy)
+        
+        # Convert back to absolute world coordinates
+        min_x = (reference_point.x_world + min_relative_x) % reference_point.world_width
+        max_x = (reference_point.x_world + max_relative_x) % reference_point.world_width
+        min_y = (reference_point.y_world + min_relative_y) % reference_point.world_height
+        max_y = (reference_point.y_world + max_relative_y) % reference_point.world_height
+        
+        # If the shape spans more than half the world in any dimension,
+        # it's crossing boundaries and we shouldn't draw a bounding box
+        if (max_relative_x - min_relative_x) > reference_point.world_width / 2:
+            return None  # Signal that bounding box shouldn't be drawn
+        if (max_relative_y - min_relative_y) > reference_point.world_height / 2:
+            return None  # Signal that bounding box shouldn't be drawn
+            
+        return min_x, max_x, min_y, max_y
 
 
     def is_point_inside(self, test_point):
@@ -261,7 +339,7 @@ class Shape:
             return False
 
         # Get a point guaranteed to be outside the shape's bounding box.
-        (min_x, max_x, min_y, max_y), (min_wx, max_wx, min_wy, max_wy) = self._get_bounding_box()
+        (min_x, max_x, min_y, max_y), (min_wx, max_wx, min_wy, max_wy) = self._get_bounding_box_with_windings()
 
         test_point_in_shape_referential = (
             test_point.x + (min_wx - test_point.winding_x) * test_point.world_width,
@@ -320,7 +398,7 @@ class Shape:
         closest_point_on_edge = None
         best_t = 0
         # Get a point guaranteed to be outside the shape's bounding box.
-        (min_x, max_x, min_y, max_y), (min_wx, max_wx, min_wy, max_wy) = self._get_bounding_box()
+        (min_x, max_x, min_y, max_y), (min_wx, max_wx, min_wy, max_wy) = self._get_bounding_box_with_windings()
 
         test_point_in_shape_referential = (
             test_point.x + (min_wx - test_point.winding_x) * test_point.world_width,

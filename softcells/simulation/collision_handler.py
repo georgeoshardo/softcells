@@ -67,7 +67,7 @@ class CollisionHandler:
             return
         
         # Get a point guaranteed to be outside the shape's bounding box.
-        (min_x, max_x, min_y, max_y), (min_wx, max_wx, min_wy, max_wy) = shape._get_bounding_box()
+        (min_x, max_x, min_y, max_y), (min_wx, max_wx, min_wy, max_wy) = shape._get_bounding_box_with_windings()
 
         
         colliding_point_in_shape_referential = (

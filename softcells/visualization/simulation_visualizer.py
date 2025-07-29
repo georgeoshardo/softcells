@@ -56,6 +56,7 @@ class SimulationVisualizer:
         self.show_trails = True
         self.show_physics_info = True
         self.show_instructions = True
+        self.show_bounding_boxes = False
     
     def handle_events(self):
         """Handle pygame events and map them to physics operations."""
@@ -168,6 +169,9 @@ class SimulationVisualizer:
                 elif event.key == pygame.K_l:
                     # Toggle trail display
                     self.show_trails = not self.show_trails
+                elif event.key == pygame.K_b:
+                    # Toggle bounding box display
+                    self.show_bounding_boxes = not self.show_bounding_boxes
         return True
     
     def _reset_trails(self):
@@ -205,6 +209,9 @@ class SimulationVisualizer:
         """Render all shapes using their render methods."""
         for shape in self.physics_engine.shapes:
             self._render_shape(shape)
+            
+            # Draw bounding boxes if enabled
+            self._render_bounding_box(shape)
             
             # Draw physics indicators if enabled
             if self.show_physics_info and len(shape.points) > 0:
@@ -255,6 +262,44 @@ class SimulationVisualizer:
             pos = (int(point.x_world), int(point.y_world))
             pygame.draw.circle(self.screen, shape.color, pos, radius)
             pygame.draw.circle(self.screen, (255, 255, 255), pos, radius, 1)
+    
+    def _render_bounding_box(self, shape):
+        """Render the bounding box of a shape."""
+        if not self.show_bounding_boxes or len(shape.points) == 0:
+            return
+        
+        # Get bounding box coordinates using world coordinates (for PBC)
+        bbox_result = shape._get_bounding_box_world()
+        
+        # Don't draw bounding box if shape crosses periodic boundaries
+        if bbox_result is None:
+            return
+            
+        min_x, max_x, min_y, max_y = bbox_result
+        
+        # Convert to screen coordinates (assuming shapes use world coordinates)
+        rect_x = int(min_x)
+        rect_y = int(min_y)
+        rect_width = int(max_x - min_x)
+        rect_height = int(max_y - min_y)
+        
+        # Draw bounding box as a rectangle outline
+        # Use a semi-transparent color
+        bounding_box_color = (255, 0, 255)  # Magenta for visibility
+        pygame.draw.rect(self.screen, bounding_box_color, 
+                        (rect_x, rect_y, rect_width, rect_height), 2)
+        
+        # Optional: Draw corner markers for better visibility
+        corner_size = 5
+        corners = [
+            (rect_x, rect_y),  # Top-left
+            (rect_x + rect_width, rect_y),  # Top-right
+            (rect_x, rect_y + rect_height),  # Bottom-left
+            (rect_x + rect_width, rect_y + rect_height)  # Bottom-right
+        ]
+        
+        for corner in corners:
+            pygame.draw.circle(self.screen, bounding_box_color, corner, corner_size)
     
     def _render_shape_info(self, shape):
         """Render physics information for a shape."""
@@ -327,6 +372,7 @@ class SimulationVisualizer:
             "H - Toggle instructions",
             "I - Toggle physics info",
             "L - Toggle trails",
+            "B - Toggle bounding boxes",
             "ESC - Exit"
         ]
         
