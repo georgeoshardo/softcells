@@ -318,7 +318,7 @@ class Shape:
         min_dist_sq = float('inf')
         closest_edge = None
         closest_point_on_edge = None
-
+        best_t = 0
         # Get a point guaranteed to be outside the shape's bounding box.
         (min_x, max_x, min_y, max_y), (min_wx, max_wx, min_wy, max_wy) = self._get_bounding_box()
 
@@ -359,5 +359,6 @@ class Shape:
             if dist_sq < min_dist_sq:
                 min_dist_sq = dist_sq
                 closest_edge = (p1, p2)
+                best_t = t
   
-        return closest_edge[0], closest_edge[1], t 
+        return closest_edge[0], closest_edge[1], best_t
