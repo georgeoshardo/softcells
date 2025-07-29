@@ -56,17 +56,18 @@ class PhysicsEngine:
     def create_initial_scene(self):
         """Create initial physics objects for the simulation."""
         # Create a circle shape with default settings
-        circle1 = CircleShape(
-            500, 100, 50, 
-            num_points=20, 
-            point_mass=1.0, 
-            pressure=GLOBAL_PRESSURE_AMOUNT,
-            spring_stiffness=1150.0, 
-            spring_damping=10.0, 
-            drag_coefficient=self.global_drag_coefficient, 
-            drag_type=self.drag_type
-        )
-        self.shapes.append(circle1)
+        # circle1 = CircleShape(
+        #     500, 100, 50, 
+        #     num_points=20, 
+        #     point_mass=1.0, 
+        #     pressure=GLOBAL_PRESSURE_AMOUNT,
+        #     spring_stiffness=1150.0, 
+        #     spring_damping=10.0, 
+        #     drag_coefficient=self.global_drag_coefficient, 
+        #     drag_type=self.drag_type
+        # )
+        # self.shapes.append(circle1)
+        pass
     
     def add_point(self, x, y, mass=1.0):
         """

@@ -45,7 +45,7 @@ class CircleShape(Shape):
         
         # Generate points around the circle
         for i in range(num_points):
-            angle = (2 * math.pi * i) / num_points
+            angle = -(2 * math.pi * i) / num_points
             x = center_x + radius * math.cos(angle)
             y = center_y + radius * math.sin(angle)
             
