@@ -15,7 +15,7 @@ from ..config import (
 )
 
 
-@njit(cache=True)
+@njit(cache=False, parallel=False, fastmath=True)
 def _ray_cast_intersections_stable(test_point_x, test_point_y, outside_point_x, outside_point_y, 
                                   shape_points_x, shape_points_y):
     """
@@ -71,6 +71,91 @@ def _ray_cast_intersections_stable(test_point_x, test_point_y, outside_point_x, 
     return intersections
 
 
+@njit(cache=False, parallel=False, fastmath=True)
+def _get_bounding_box_coords_and_windings(x_coords, y_coords, winding_x_coords, winding_y_coords):
+    """
+    Numba-compiled function to calculate bounding box coordinates and unique windings.
+    
+    Args:
+        x_coords: Numpy array of x coordinates (float64[:])
+        y_coords: Numpy array of y coordinates (float64[:]) 
+        winding_x_coords: Numpy array of winding x coordinates (int32[:])
+        winding_y_coords: Numpy array of winding y coordinates (int32[:])
+    
+    Returns:
+        tuple: (min_x, max_x, min_y, max_y, unique_windings_x, unique_windings_y)
+    """
+    if len(x_coords) == 0:
+        return 0.0, 0.0, 0.0, 0.0, np.array([0], dtype=np.int32), np.array([0], dtype=np.int32)
+    
+    # Calculate bounding box
+    min_x = x_coords[0]
+    max_x = x_coords[0]
+    min_y = y_coords[0]
+    max_y = y_coords[0]
+    
+    for i in range(1, len(x_coords)):
+        if x_coords[i] < min_x:
+            min_x = x_coords[i]
+        if x_coords[i] > max_x:
+            max_x = x_coords[i]
+        if y_coords[i] < min_y:
+            min_y = y_coords[i]
+        if y_coords[i] > max_y:
+            max_y = y_coords[i]
+    
+    # Calculate unique windings for bounding box corners
+    # We need windings for: (min_x, min_y), (max_x, min_y), (max_x, max_y), (min_x, max_y)
+    bb_windings_x = np.array([0, 0, 0, 0], dtype=np.int32)  # Will be overwritten
+    bb_windings_y = np.array([0, 0, 0, 0], dtype=np.int32)  # Will be overwritten
+    
+    # Find windings for each corner by looking at the closest original point
+    # This is a simplified approach - in practice you might want more sophisticated logic
+    corner_count = 0
+    
+    # For each bounding box corner, find the winding from the closest original point
+    corners_x = np.array([min_x, max_x, max_x, min_x], dtype=np.float64)
+    corners_y = np.array([min_y, min_y, max_y, max_y], dtype=np.float64)
+    
+    for corner_idx in range(4):
+        corner_x = corners_x[corner_idx]
+        corner_y = corners_y[corner_idx]
+        
+        # Find closest original point to this corner
+        min_dist_sq = float('inf')
+        closest_idx = 0
+        
+        for i in range(len(x_coords)):
+            dist_sq = (x_coords[i] - corner_x)**2 + (y_coords[i] - corner_y)**2
+            if dist_sq < min_dist_sq:
+                min_dist_sq = dist_sq
+                closest_idx = i
+        
+        bb_windings_x[corner_idx] = winding_x_coords[closest_idx]
+        bb_windings_y[corner_idx] = winding_y_coords[closest_idx]
+    
+    # Remove duplicates from windings (simple O(n²) approach for small arrays)
+    unique_windings_x = np.empty(4, dtype=np.int32)
+    unique_windings_y = np.empty(4, dtype=np.int32)
+    unique_count = 0
+    
+    for i in range(4):
+        is_duplicate = False
+        for j in range(unique_count):
+            if bb_windings_x[i] == unique_windings_x[j] and bb_windings_y[i] == unique_windings_y[j]:
+                is_duplicate = True
+                break
+        
+        if not is_duplicate:
+            unique_windings_x[unique_count] = bb_windings_x[i]
+            unique_windings_y[unique_count] = bb_windings_y[i]
+            unique_count += 1
+    
+    # Return only the unique portion of the arrays
+    return (min_x, max_x, min_y, max_y, 
+            unique_windings_x[:unique_count], unique_windings_y[:unique_count])
+
+
 def _warm_up_ray_cast_cache():
     """
     Warm up the Numba cache for the ray casting function to avoid compilation delays.
@@ -79,9 +164,12 @@ def _warm_up_ray_cast_cache():
     # Create simple test data
     test_x = np.array([0.0, 1.0, 0.5], dtype=np.float64)
     test_y = np.array([0.0, 0.0, 1.0], dtype=np.float64)
+    test_winding_x = np.array([0, 0, 0], dtype=np.int32)
+    test_winding_y = np.array([0, 0, 0], dtype=np.int32)
     
-    # Call the function once to trigger compilation
+    # Call the functions once to trigger compilation
     _ray_cast_intersections_stable(0.5, 0.3, 2.0, 0.3, test_x, test_y)
+    _get_bounding_box_coords_and_windings(test_x, test_y, test_winding_x, test_winding_y)
 
 
 class Shape:
@@ -329,41 +417,6 @@ class Shape:
         unique_windings = list(set(all_windings))
 
         return (min(x_coords), max(x_coords), min(y_coords), max(y_coords)), unique_windings
-    
-    def _get_bounding_box_points(self, return_unique_windings=True):
-        """Get the min and max coordinates of the shape."""
-        if not self.points:
-            return 0, 0, 0, 0
-        x_coords = [p.x for p in self.points]
-        y_coords = [p.y for p in self.points]
-
-        min_x = min(x_coords)
-        max_x = max(x_coords)
-        min_y = min(y_coords)
-        max_y = max(y_coords)
-
-        bb1 = PointMass(x=min_x, y=min_y, mass=0, 
-                       world_width=self.points[0].world_width, 
-                       world_height=self.points[0].world_height)
-        bb2 = PointMass(x=max_x, y=min_y, mass=0, 
-                       world_width=self.points[0].world_width, 
-                       world_height=self.points[0].world_height)
-        bb3 = PointMass(x=max_x, y=max_y, mass=0, 
-                       world_width=self.points[0].world_width, 
-                       world_height=self.points[0].world_height)
-        bb4 = PointMass(x=min_x, y=max_y, mass=0, 
-                       world_width=self.points[0].world_width, 
-                       world_height=self.points[0].world_height)
-        
-        if not return_unique_windings:
-            return (bb1, bb2, bb3, bb4)
-        else:
-            unique_windings = list(set(zip(
-                [p.winding_x for p in [bb1, bb2, bb3, bb4]],
-                [p.winding_y for p in [bb1, bb2, bb3, bb4]]
-            )))
-
-            return (bb1, bb2, bb3, bb4), unique_windings
 
     def is_point_inside(self, test_point):
         """
@@ -379,13 +432,25 @@ class Shape:
         if len(self.points) < 3:
             return False
 
-        (bb1, bb2, bb3, bb4), unique_windings = self._get_bounding_box_points()
+        # Extract coordinates into numpy arrays for Numba processing
+        x_coords = np.array([p.x for p in self.points], dtype=np.float64)
+        y_coords = np.array([p.y for p in self.points], dtype=np.float64)
+        winding_x_coords = np.array([p.winding_x for p in self.points], dtype=np.int32)
+        winding_y_coords = np.array([p.winding_y for p in self.points], dtype=np.int32)
+        
+        # Use Numba-compiled function for fast bounding box and windings computation
+        min_x, max_x, min_y, max_y, unique_windings_x, unique_windings_y = _get_bounding_box_coords_and_windings(
+            x_coords, y_coords, winding_x_coords, winding_y_coords
+        )
 
         # Pre-compute shape coordinates as numpy arrays for stable type inference
         shape_points_x = np.array([p.x for p in self.points], dtype=np.float64)
         shape_points_y = np.array([p.y for p in self.points], dtype=np.float64)
 
-        for winding_x, winding_y in unique_windings:
+        for i in range(len(unique_windings_x)):
+            winding_x = int(unique_windings_x[i])
+            winding_y = int(unique_windings_y[i])
+            
             test_point_in_shape_referential_x = (
                 test_point.x + (winding_x - test_point.winding_x) * test_point.world_width
             )
@@ -393,7 +458,7 @@ class Shape:
                 test_point.y + (winding_y - test_point.winding_y) * test_point.world_height
             )
 
-            outside_point_x = bb3.x + 10.0
+            outside_point_x = max_x + 10.0  # Use max_x directly instead of bb3.x
             outside_point_y = test_point_in_shape_referential_y
             
             # Use the Numba-compiled function for the expensive ray-casting computation
