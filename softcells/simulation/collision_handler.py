@@ -100,20 +100,21 @@ class CollisionHandler:
 
         for i in range(len(all_nuclei)):
             shape_nuc = all_nuclei[i]
-            for j in range(num_shapes):
-                shape = shapes[j]
-                if shape.identity == 0 and shape.cell_unique_id == shape_nuc.cell_unique_id:
-                    
+            for j in range(len(all_membranes)):
+                shape_mem = all_membranes[j]
+
+                if shape_mem.identity == 0 and shape_mem.cell_unique_id == shape_nuc.cell_unique_id:
+
                     # Test points of membrane inside nucleus
-                    for point in shape.get_points():
+                    for point in shape_mem.get_points():
                         is_inside, at_windings = shape_nuc.is_point_inside(point)
                         if is_inside:
                             self.resolve_collision(point, shape_nuc, at_windings=at_windings)
 
                     for point in shape_nuc.get_points():
-                        is_outside, at_windings = shape.is_point_outside(point)
+                        is_outside, at_windings = shape_mem.is_point_outside(point)
                         if is_outside:
-                            self.resolve_collision(point, shape, at_windings=at_windings)
+                            self.resolve_collision(point, shape_mem, at_windings=at_windings)
 
         # for i in range(num_shapes):
         #     shape_a = shapes[i]
