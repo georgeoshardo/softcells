@@ -244,15 +244,20 @@ class Shape:
         return min(x_coords), max(x_coords), min(y_coords), max(y_coords)
     
     def _get_bounding_box_with_windings(self):
-        """Get the min and max coordinates of the shape including winding data."""
+        """Get the min and max coordinates of the shape and a list of unique winding pairs."""
         if not self.points:
-            return (0, 0, 0, 0), (0, 0, 0, 0)
+            return (0, 0, 0, 0), []  # Return an empty list for windings
+
         x_coords = [p.x for p in self.points]
         y_coords = [p.y for p in self.points]
-        windings_x = [p.winding_x for p in self.points]
-        windings_y = [p.winding_y for p in self.points]
-        return (min(x_coords), max(x_coords), min(y_coords), max(y_coords)), \
-            (min(windings_x), max(windings_x), min(windings_y), max(windings_y))
+
+        # Create a list of (winding_x, winding_y) tuples for all points
+        all_windings = zip([p.winding_x for p in self.points], [p.winding_y for p in self.points])
+
+        # Find the unique winding pairs by converting the list to a set and back
+        unique_windings = list(set(all_windings))
+
+        return (min(x_coords), max(x_coords), min(y_coords), max(y_coords)), unique_windings
     
     def _get_bounding_box_points(self, return_unique_windings=True):
         """Get the min and max coordinates of the shape."""

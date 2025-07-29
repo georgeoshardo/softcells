@@ -19,15 +19,25 @@ class CollisionHandler:
         self.restitution = COLLISION_RESTITUTION
 
     def check_bbs_overlap(self, shape_a, shape_b):
+        """
+        Check if the bounding boxes of two shapes overlap, considering periodic boundaries.
+        """
+        (min_ax, max_ax, min_ay, max_ay), windings_a = shape_a._get_bounding_box_with_windings()
+        (min_bx, max_bx, min_by, max_by), windings_b = shape_b._get_bounding_box_with_windings()
 
-        bb_a1, bb_a2, bb_a3, bb_a4 = shape_a._get_bounding_box_points(return_unique_windings=False)
-        bb_b1, bb_b2, bb_b3, bb_b4 = shape_b._get_bounding_box_points(return_unique_windings=False)
+        world_width = shape_a.points[0].world_width
+        world_height = shape_a.points[0].world_height
 
-        bb_b_as_shape = Shape([bb_b4, bb_b3, bb_b2, bb_b1])
+        for wa_x, wa_y in windings_a:
+            for wb_x, wb_y in windings_b:
+                dx = (wb_x - wa_x) * world_width
+                dy = (wb_y - wa_y) * world_height
 
-        for point in [bb_a1, bb_a2, bb_a3, bb_a4]:
-            if bb_b_as_shape.is_point_inside(point):
-                return True
+                # Check for overlap in the x-axis
+                if (min_ax < max_bx - dx and max_ax > min_bx - dx and
+                    min_ay < max_by - dy and max_ay > min_by - dy):
+                    print("hi")
+                    return True
 
         return False
 
