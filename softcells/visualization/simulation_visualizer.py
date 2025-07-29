@@ -57,7 +57,7 @@ class SimulationVisualizer:
         
         # Visual effects control
         self.show_trails = True
-        self.show_physics_info = True
+        self.show_physics_info = False
         self.show_instructions = True
         self.show_bounding_boxes = False
     
