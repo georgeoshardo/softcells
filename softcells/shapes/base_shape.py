@@ -282,7 +282,7 @@ class Shape:
         self.random_force = np.zeros(2)
 
     def random_noise(self, sigma):
-        return sigma * np.random.normal(2)
+        return sigma * np.random.normal(0,1,size=2)
     
     def set_identity(self, identity):
         """Set a unique identifier for this shape."""
@@ -479,8 +479,6 @@ class Shape:
         Apply Ornstein-Uhlenbeck forces to all points in the shape.
         This simulates random thermal motion.
         """
-        if len(self.points) < 3:
-            return
 
         ### Compute random forces
         random_noise = self.random_noise(
@@ -489,13 +487,11 @@ class Shape:
 
         # see Gillespie, PRE 95
         # "Exact numerical simulation of the Ornstein-Uhlenbeck process and its integral"
-        deterministic_ou_term = np.exp(-DEFAULT_DT/0.1)
+        deterministic_ou_term = np.exp(-DEFAULT_DT/10)
         random_ou_term = random_noise * np.sqrt(1-np.exp(-2*DEFAULT_DT/0.1))
 
         self.random_force = self.random_force * deterministic_ou_term + random_ou_term
-        ###
-
-        print(self.random_force)
+    
         
         for point in self.points:
             point.apply_force(self.random_force[0], self.random_force[1])
@@ -697,9 +693,6 @@ class Shape:
         winding_diff_x = winding_x - test_point.winding_x
         winding_diff_y = winding_y - test_point.winding_y
         
-        # Limit winding differences to [-1, 1] to handle only immediate boundary crossings
-        winding_diff_x = max(-1, min(1, winding_diff_x))
-        winding_diff_y = max(-1, min(1, winding_diff_y))
 
         test_point_in_shape_referential = (
             test_point.x + winding_diff_x * test_point.world_width,

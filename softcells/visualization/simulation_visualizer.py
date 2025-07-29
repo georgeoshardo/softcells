@@ -102,12 +102,12 @@ class SimulationVisualizer:
                     # Add a new circle shape at mouse position
                     mouse_x, mouse_y = pygame.mouse.get_pos()
                     circle1, circle2 = self.physics_engine.add_cell_shape(
-                        mouse_x, mouse_y, 50, 
-                        num_points=30, 
+                        mouse_x, mouse_y, 20, 
+                        num_points=25, 
                         point_mass=1.0, 
                         pressure=GLOBAL_PRESSURE_AMOUNT,
-                        spring_stiffness=1150.0, 
-                        spring_damping=10.0
+                        spring_stiffness=2150.0, 
+                        spring_damping=20.0
                     )
                     circle1.set_color((255, 255, 100))  # Yellow
                     circle2.set_color((255, 100, 100))  # Red
