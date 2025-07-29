@@ -16,26 +16,22 @@ from ..config import (
 
 
 @njit(cache=True)
-def _ray_cast_intersections_simple(test_point_x, test_point_y, outside_point_x, outside_point_y, 
+def _ray_cast_intersections_stable(test_point_x, test_point_y, outside_point_x, outside_point_y, 
                                   shape_points_x, shape_points_y):
     """
     Numba-compiled ray casting algorithm for point-in-polygon testing.
-    Uses simple arrays instead of numpy arrays for better compatibility.
+    Uses numpy arrays for stable type inference.
     
     Args:
-        test_point_x, test_point_y: Coordinates of the test point
-        outside_point_x, outside_point_y: Coordinates of a point outside the shape
-        shape_points_x, shape_points_y: Lists/tuples of shape vertices coordinates
+        test_point_x, test_point_y: Coordinates of the test point (float64)
+        outside_point_x, outside_point_y: Coordinates of a point outside the shape (float64)
+        shape_points_x, shape_points_y: Numpy arrays of shape vertices coordinates (float64[:])
     
     Returns:
         int: Number of intersections between ray and shape edges
     """
     intersections = 0
-    num_points = len(shape_points_x)
-    
-    # The ray is from test_point to outside_point
-    p1_x, p1_y = test_point_x, test_point_y
-    q1_x, q1_y = outside_point_x, outside_point_y
+    num_points = shape_points_x.shape[0]
     
     for i in range(num_points):
         edge_start_x = shape_points_x[i]
@@ -43,25 +39,22 @@ def _ray_cast_intersections_simple(test_point_x, test_point_y, outside_point_x, 
         edge_end_x = shape_points_x[(i + 1) % num_points]
         edge_end_y = shape_points_y[(i + 1) % num_points]
         
-        p2_x, p2_y = edge_start_x, edge_start_y
-        q2_x, q2_y = edge_end_x, edge_end_y
-        
         # Inline orientation calculations for better performance
-        # o1 = orientation((p1_x, p1_y), (q1_x, q1_y), (p2_x, p2_y))
-        val1 = (q1_y - p1_y) * (p2_x - q1_x) - (q1_x - p1_x) * (p2_y - q1_y)
-        o1 = 0 if val1 == 0 else (1 if val1 > 0 else 2)
+        # o1 = orientation((test_point_x, test_point_y), (outside_point_x, outside_point_y), (edge_start_x, edge_start_y))
+        val1 = (outside_point_y - test_point_y) * (edge_start_x - outside_point_x) - (outside_point_x - test_point_x) * (edge_start_y - outside_point_y)
+        o1 = 0 if val1 == 0.0 else (1 if val1 > 0.0 else 2)
         
-        # o2 = orientation((p1_x, p1_y), (q1_x, q1_y), (q2_x, q2_y))  
-        val2 = (q1_y - p1_y) * (q2_x - q1_x) - (q1_x - p1_x) * (q2_y - q1_y)
-        o2 = 0 if val2 == 0 else (1 if val2 > 0 else 2)
+        # o2 = orientation((test_point_x, test_point_y), (outside_point_x, outside_point_y), (edge_end_x, edge_end_y))  
+        val2 = (outside_point_y - test_point_y) * (edge_end_x - outside_point_x) - (outside_point_x - test_point_x) * (edge_end_y - outside_point_y)
+        o2 = 0 if val2 == 0.0 else (1 if val2 > 0.0 else 2)
         
-        # o3 = orientation((p2_x, p2_y), (q2_x, q2_y), (p1_x, p1_y))
-        val3 = (q2_y - p2_y) * (p1_x - q2_x) - (q2_x - p2_x) * (p1_y - q2_y)
-        o3 = 0 if val3 == 0 else (1 if val3 > 0 else 2)
+        # o3 = orientation((edge_start_x, edge_start_y), (edge_end_x, edge_end_y), (test_point_x, test_point_y))
+        val3 = (edge_end_y - edge_start_y) * (test_point_x - edge_end_x) - (edge_end_x - edge_start_x) * (test_point_y - edge_end_y)
+        o3 = 0 if val3 == 0.0 else (1 if val3 > 0.0 else 2)
         
-        # o4 = orientation((p2_x, p2_y), (q2_x, q2_y), (q1_x, q1_y))
-        val4 = (q2_y - p2_y) * (q1_x - q2_x) - (q2_x - p2_x) * (q1_y - q2_y)
-        o4 = 0 if val4 == 0 else (1 if val4 > 0 else 2)
+        # o4 = orientation((edge_start_x, edge_start_y), (edge_end_x, edge_end_y), (outside_point_x, outside_point_y))
+        val4 = (edge_end_y - edge_start_y) * (outside_point_x - edge_end_x) - (edge_end_x - edge_start_x) * (outside_point_y - edge_end_y)
+        o4 = 0 if val4 == 0.0 else (1 if val4 > 0.0 else 2)
         
         # General case of intersection
         if o1 != o2 and o3 != o4:
@@ -70,12 +63,25 @@ def _ray_cast_intersections_simple(test_point_x, test_point_y, outside_point_x, 
             
         # Special case for collinear points
         if o3 == 0:
-            # Check if q (p1) lies on segment pr (p2, q2)
-            if (p1_x <= max(p2_x, q2_x) and p1_x >= min(p2_x, q2_x) and
-                p1_y <= max(p2_y, q2_y) and p1_y >= min(p2_y, q2_y)):
+            # Check if test_point lies on segment (edge_start, edge_end)
+            if (test_point_x <= max(edge_start_x, edge_end_x) and test_point_x >= min(edge_start_x, edge_end_x) and
+                test_point_y <= max(edge_start_y, edge_end_y) and test_point_y >= min(edge_start_y, edge_end_y)):
                 intersections += 1
     
     return intersections
+
+
+def _warm_up_ray_cast_cache():
+    """
+    Warm up the Numba cache for the ray casting function to avoid compilation delays.
+    Call this once at startup for better performance.
+    """
+    # Create simple test data
+    test_x = np.array([0.0, 1.0, 0.5], dtype=np.float64)
+    test_y = np.array([0.0, 0.0, 1.0], dtype=np.float64)
+    
+    # Call the function once to trigger compilation
+    _ray_cast_intersections_stable(0.5, 0.3, 2.0, 0.3, test_x, test_y)
 
 
 class Shape:
@@ -375,9 +381,9 @@ class Shape:
 
         (bb1, bb2, bb3, bb4), unique_windings = self._get_bounding_box_points()
 
-        # Pre-compute shape coordinates as simple lists for Numba
-        shape_points_x = [p.x for p in self.points]
-        shape_points_y = [p.y for p in self.points]
+        # Pre-compute shape coordinates as numpy arrays for stable type inference
+        shape_points_x = np.array([p.x for p in self.points], dtype=np.float64)
+        shape_points_y = np.array([p.y for p in self.points], dtype=np.float64)
 
         for winding_x, winding_y in unique_windings:
             test_point_in_shape_referential_x = (
@@ -387,13 +393,13 @@ class Shape:
                 test_point.y + (winding_y - test_point.winding_y) * test_point.world_height
             )
 
-            outside_point_x = bb3.x + 10
+            outside_point_x = bb3.x + 10.0
             outside_point_y = test_point_in_shape_referential_y
             
             # Use the Numba-compiled function for the expensive ray-casting computation
-            intersections = _ray_cast_intersections_simple(
-                test_point_in_shape_referential_x, test_point_in_shape_referential_y,
-                outside_point_x, outside_point_y,
+            intersections = _ray_cast_intersections_stable(
+                float(test_point_in_shape_referential_x), float(test_point_in_shape_referential_y),
+                float(outside_point_x), float(outside_point_y),
                 shape_points_x, shape_points_y
             )
 
