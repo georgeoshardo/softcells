@@ -8,7 +8,8 @@ from ..core import PointMass
 from ..config import (
     GLOBAL_PRESSURE_AMOUNT, DEFAULT_CIRCLE_POINTS, DEFAULT_POINT_MASS,
     DEFAULT_CIRCLE_SPRING_STIFFNESS, DEFAULT_CIRCLE_SPRING_DAMPING,
-    DEFAULT_GLOBAL_DRAG_COEFFICIENT, DEFAULT_DRAG_TYPE, CIRCLE_COLOR
+    DEFAULT_GLOBAL_DRAG_COEFFICIENT, DEFAULT_DRAG_TYPE, CIRCLE_COLOR,
+    DEFAULT_WIDTH, DEFAULT_HEIGHT
 )
 from .base_shape import Shape
 
@@ -44,11 +45,12 @@ class CircleShape(Shape):
         
         # Generate points around the circle
         for i in range(num_points):
-            angle = (2 * math.pi * i) / num_points
+            angle = -(2 * math.pi * i) / num_points
             x = center_x + radius * math.cos(angle)
             y = center_y + radius * math.sin(angle)
             
-            point = PointMass(x, y, point_mass, drag_coefficient)
+            point = PointMass(x, y, point_mass, drag_coefficient, 
+                              world_height=DEFAULT_HEIGHT, world_width=DEFAULT_WIDTH)
             self.add_point(point)
         
         # Set spring properties and create springs

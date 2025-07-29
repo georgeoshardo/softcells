@@ -29,6 +29,6 @@ __author__ = "SoftCells Development Team"
 
 __all__ = [
     'PointMass', 'Spring', 'Shape', 'CircleShape', 
-    'PhysicsSimulation', 'PhysicsEngine', 'CollisionHandler',
+    'PhysicsEngine', 'CollisionHandler',
     'SimulationVisualizer'
 ] 

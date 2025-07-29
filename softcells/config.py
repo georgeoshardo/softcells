@@ -41,3 +41,5 @@ MAX_TRAIL_LENGTH = 30
 # Shape colors
 CIRCLE_COLOR = (150, 255, 150)  # Green
 DEFAULT_SHAPE_COLOR = (100, 150, 255)  # Blue 
+
+PERIODIC = True

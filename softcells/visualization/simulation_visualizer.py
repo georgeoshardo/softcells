@@ -59,6 +59,7 @@ class SimulationVisualizer:
         self.show_trails = True
         self.show_physics_info = True
         self.show_instructions = True
+        self.show_bounding_boxes = False
     
     def handle_events(self):
         """Handle pygame events and map them to physics operations."""
@@ -171,6 +172,9 @@ class SimulationVisualizer:
                 elif event.key == pygame.K_l:
                     # Toggle trail display
                     self.show_trails = not self.show_trails
+                elif event.key == pygame.K_b:
+                    # Toggle bounding box display
+                    self.show_bounding_boxes = not self.show_bounding_boxes
         return True
     
     def _reset_trails(self):
@@ -209,6 +213,9 @@ class SimulationVisualizer:
         for shape in self.physics_engine.shapes:
             self._render_shape(shape)
             
+            # Draw bounding boxes if enabled
+            self._render_bounding_box(shape)
+            
             # Draw physics indicators if enabled
             if self.show_physics_info and len(shape.points) > 0:
                 self._render_shape_info(shape)
@@ -224,6 +231,9 @@ class SimulationVisualizer:
         # Draw springs with color based on stretch
         if hasattr(shape, 'springs_enabled') and shape.springs_enabled and len(shape.springs) > 0:
             for spring in shape.springs:
+                if spring.point1.winding_x != spring.point2.winding_x or \
+                   spring.point1.winding_y != spring.point2.winding_y:
+                    continue
                 # Calculate spring color based on stretch
                 stretch_ratio = spring.get_stretch_ratio()
                 
@@ -237,12 +247,13 @@ class SimulationVisualizer:
                     color = (0, 255, 0)
                 
                 # Draw the spring
-                pos1 = (int(spring.point1.x), int(spring.point1.y))
-                pos2 = (int(spring.point2.x), int(spring.point2.y))
+                pos1 = (int(spring.point1.x_world), int(spring.point1.y_world))
+                pos2 = (int(spring.point2.x_world), int(spring.point2.y_world))
+
                 pygame.draw.line(self.screen, color, pos1, pos2, shape.line_width)
         else:
             # Draw basic lines if springs are disabled
-            positions = [(int(point.x), int(point.y)) for point in shape.points]
+            positions = [(int(point.x_world), int(point.y_world)) for point in shape.points]
             for i in range(len(positions)):
                 start_pos = positions[i]
                 end_pos = positions[(i + 1) % len(positions)]
@@ -251,15 +262,53 @@ class SimulationVisualizer:
         # Draw the individual points
         for point in shape.points:
             radius = max(2, int(3 + point.mass))
-            pos = (int(point.x), int(point.y))
+            pos = (int(point.x_world), int(point.y_world))
             pygame.draw.circle(self.screen, shape.color, pos, radius)
             pygame.draw.circle(self.screen, (255, 255, 255), pos, radius, 1)
+    
+    def _render_bounding_box(self, shape):
+        """Render the bounding box of a shape."""
+        if not self.show_bounding_boxes or len(shape.points) == 0:
+            return
+        
+        # Get bounding box coordinates using world coordinates (for PBC)
+        bbox_result = shape._get_bounding_box_world()
+        
+        # Don't draw bounding box if shape crosses periodic boundaries
+        if bbox_result is None:
+            return
+            
+        min_x, max_x, min_y, max_y = bbox_result
+        
+        # Convert to screen coordinates (assuming shapes use world coordinates)
+        rect_x = int(min_x)
+        rect_y = int(min_y)
+        rect_width = int(max_x - min_x)
+        rect_height = int(max_y - min_y)
+        
+        # Draw bounding box as a rectangle outline
+        # Use a semi-transparent color
+        bounding_box_color = (255, 0, 255)  # Magenta for visibility
+        pygame.draw.rect(self.screen, bounding_box_color, 
+                        (rect_x, rect_y, rect_width, rect_height), 2)
+        
+        # Optional: Draw corner markers for better visibility
+        corner_size = 5
+        corners = [
+            (rect_x, rect_y),  # Top-left
+            (rect_x + rect_width, rect_y),  # Top-right
+            (rect_x, rect_y + rect_height),  # Bottom-left
+            (rect_x + rect_width, rect_y + rect_height)  # Bottom-right
+        ]
+        
+        for corner in corners:
+            pygame.draw.circle(self.screen, bounding_box_color, corner, corner_size)
     
     def _render_shape_info(self, shape):
         """Render physics information for a shape."""
         # Calculate center of shape for text
-        center_x = sum(p.x for p in shape.points) / len(shape.points)
-        center_y = sum(p.y for p in shape.points) / len(shape.points)
+        center_x = sum(p.x_world for p in shape.points) / len(shape.points)
+        center_y = sum(p.y_world for p in shape.points) / len(shape.points)
         
         # Create multi-line text display
         font_small = pygame.font.Font(None, 14)
@@ -297,7 +346,7 @@ class SimulationVisualizer:
             color = (intensity, intensity // 2, 255)
             
             # Draw the point
-            pos = (int(point.x), int(point.y))
+            pos = (int(point.x_world), int(point.y_world))
             pygame.draw.circle(self.screen, color, pos, radius)
             pygame.draw.circle(self.screen, (255, 255, 255), pos, radius, 1)
     
@@ -326,6 +375,7 @@ class SimulationVisualizer:
             "H - Toggle instructions",
             "I - Toggle physics info",
             "L - Toggle trails",
+            "B - Toggle bounding boxes",
             "ESC - Exit"
         ]
         

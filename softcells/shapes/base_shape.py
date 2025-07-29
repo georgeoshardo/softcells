@@ -5,7 +5,7 @@ This module contains no rendering dependencies.
 
 import math
 
-from ..core import Spring
+from ..core import Spring, PointMass
 from ..utils.geometry import vectorized_orientations, on_segment
 from ..config import (
     DEFAULT_SHAPE_COLOR, DEFAULT_LINE_WIDTH, COLLISION_SLOP, 
@@ -242,6 +242,52 @@ class Shape:
         x_coords = [p.x for p in self.points]
         y_coords = [p.y for p in self.points]
         return min(x_coords), max(x_coords), min(y_coords), max(y_coords)
+    
+    def _get_bounding_box_with_windings(self):
+        """Get the min and max coordinates of the shape including winding data."""
+        if not self.points:
+            return (0, 0, 0, 0), (0, 0, 0, 0)
+        x_coords = [p.x for p in self.points]
+        y_coords = [p.y for p in self.points]
+        windings_x = [p.winding_x for p in self.points]
+        windings_y = [p.winding_y for p in self.points]
+        return (min(x_coords), max(x_coords), min(y_coords), max(y_coords)), \
+            (min(windings_x), max(windings_x), min(windings_y), max(windings_y))
+    
+    def _get_bounding_box_points(self, return_unique_windings=True):
+        """Get the min and max coordinates of the shape."""
+        if not self.points:
+            return 0, 0, 0, 0
+        x_coords = [p.x for p in self.points]
+        y_coords = [p.y for p in self.points]
+
+        min_x = min(x_coords)
+        max_x = max(x_coords)
+        min_y = min(y_coords)
+        max_y = max(y_coords)
+
+        bb1 = PointMass(x=min_x, y=min_y, mass=0, 
+                       world_width=self.points[0].world_width, 
+                       world_height=self.points[0].world_height)
+        bb2 = PointMass(x=max_x, y=min_y, mass=0, 
+                       world_width=self.points[0].world_width, 
+                       world_height=self.points[0].world_height)
+        bb3 = PointMass(x=max_x, y=max_y, mass=0, 
+                       world_width=self.points[0].world_width, 
+                       world_height=self.points[0].world_height)
+        bb4 = PointMass(x=min_x, y=max_y, mass=0, 
+                       world_width=self.points[0].world_width, 
+                       world_height=self.points[0].world_height)
+        
+        if not return_unique_windings:
+            return (bb1, bb2, bb3, bb4)
+        else:
+            unique_windings = list(set(zip(
+                [p.winding_x for p in [bb1, bb2, bb3, bb4]],
+                [p.winding_y for p in [bb1, bb2, bb3, bb4]]
+            )))
+
+            return (bb1, bb2, bb3, bb4), unique_windings
 
     def is_point_inside(self, test_point):
         """
@@ -257,28 +303,36 @@ class Shape:
             return False
 
         # Get a point guaranteed to be outside the shape's bounding box.
-        _, max_x, _, _ = self._get_bounding_box()
-        outside_point = (max_x + 10, test_point.y)
-        
-        intersections = 0
-        num_points = len(self.points)
+        # (min_x, max_x, min_y, max_y), (min_wx, max_wx, min_wy, max_wy) = self._get_bounding_box()
 
-        # The ray is from test_point to outside_point.
-        p1 = (test_point.x, test_point.y)
-        q1 = outside_point
+        (bb1, bb2, bb3, bb4), unique_windings = self._get_bounding_box_points()
 
-        # Iterate over each edge of the shape.
-        for i in range(num_points):
-            edge_start = self.points[i]
-            edge_end = self.points[(i + 1) % num_points]
+        for winding_x, winding_y in unique_windings:
+
+            test_point_in_shape_referential = (
+                test_point.x + (winding_x - test_point.winding_x) * test_point.world_width,
+                test_point.y + (winding_y - test_point.winding_y) * test_point.world_height
+            )
+
+            outside_point = (
+                bb3.x + 10,
+                test_point_in_shape_referential[1] 
+            )
             
-            p2 = (edge_start.x, edge_start.y)
-            q2 = (edge_end.x, edge_end.y)
+            intersections = 0
+            num_points = len(self.points)
 
-            # Check for intersection between the ray and the current edge.
-            # This is a standard line segment intersection algorithm.
+            # The ray is from test_point to outside_point.
+            p1 = test_point_in_shape_referential
+            q1 = outside_point
 
-            o1, o2, o3, o4 = vectorized_orientations(p1, q1, p2, q2)
+            # Iterate over each edge of the shape.
+            for i in range(num_points):
+                edge_start = self.points[i]
+                edge_end = self.points[(i + 1) % num_points]
+                
+                p2 = (edge_start.x, edge_start.y)
+                q2 = (edge_end.x, edge_end.y)
 
             # General case of intersection
             # https://www.algotree.org/images/Line_Segment_Intersection_General_Case.svg
@@ -286,13 +340,23 @@ class Shape:
                 intersections += 1
                 continue
 
-            # Special Cases for collinear points
-            if o3 == 0 and on_segment(p2, p1, q2):
-                intersections += 1
+                o1, o2, o3, o4 = vectorized_orientations(p1, q1, p2, q2)
 
-        return intersections % 2 == 1
+                # General case of intersection
+                if o1 != o2 and o3 != o4:
+                    intersections += 1
+                    continue
 
-    def find_closest_edge(self, test_point):
+                # Special Cases for collinear points
+                if o3 == 0 and on_segment(p2, p1, q2):
+                    intersections += 1
+
+            if intersections % 2 == 1:
+                return True, (winding_x, winding_y)  # Point is inside the shape
+
+        return False, (None, None)  # Point is outside the shape
+
+    def find_closest_edge(self, test_point, at_windings):
         """
         Finds the closest edge of the shape to a given point.
 
@@ -306,6 +370,14 @@ class Shape:
         min_dist_sq = float('inf')
         closest_edge = None
         closest_point_on_edge = None
+        best_t = 0
+
+        winding_x, winding_y = at_windings
+
+        test_point_in_shape_referential = (
+            test_point.x + (winding_x - test_point.winding_x) * test_point.world_width,
+            test_point.y + (winding_y - test_point.winding_y) * test_point.world_height
+        )
 
         if len(self.points) < 2:
             return None, None, None
@@ -324,7 +396,7 @@ class Shape:
                 continue
 
             # Projection of vector (test_point - p1) onto the edge vector
-            t = ((test_point.x - p1.x) * line_vec_x + (test_point.y - p1.y) * line_vec_y) / line_len_sq
+            t = ((test_point_in_shape_referential[0] - p1.x) * line_vec_x + (test_point_in_shape_referential[1] - p1.y) * line_vec_y) / line_len_sq
             t = max(0, min(1, t))  # Clamp t to the segment [0, 1]
 
             # Closest point on the line segment
@@ -332,11 +404,11 @@ class Shape:
             closest_y = p1.y + t * line_vec_y
 
             # Squared distance from the test point to the closest point on the segment
-            dist_sq = (test_point.x - closest_x)**2 + (test_point.y - closest_y)**2
+            dist_sq = (test_point_in_shape_referential[0] - closest_x)**2 + (test_point_in_shape_referential[1] - closest_y)**2
 
             if dist_sq < min_dist_sq:
                 min_dist_sq = dist_sq
                 closest_edge = (p1, p2)
-                closest_point_on_edge = (closest_x, closest_y, t) # Also return t for weighting
-
-        return closest_edge[0], closest_edge[1], closest_point_on_edge 
+                best_t = t
+  
+        return closest_edge[0], closest_edge[1], best_t

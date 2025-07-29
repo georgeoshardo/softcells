@@ -3,6 +3,7 @@ Point mass physics implementation using Verlet integration.
 """
 
 import math
+from ..utils import pbc_operator, winding_vector
 
 
 class PointMass:
@@ -11,8 +12,8 @@ class PointMass:
     Forces can act upon it to affect its motion, but it has no collision of its own.
     Uses Verlet integration for better stability and energy conservation.
     """
-    
-    def __init__(self, x, y, mass=1.0, drag_coefficient=0.0):
+
+    def __init__(self, x, y, mass=1.0, drag_coefficient=0.0, world_height=1.0, world_width=1.0):
         """
         Initialize a point mass.
         
@@ -46,6 +47,37 @@ class PointMass:
         
         # Flag to handle first integration step
         self.first_step = True
+
+        self.world_height = world_height
+        self.world_width = world_width
+
+    @property
+    def winding_x(self):
+        """
+        x position for periodic boundary conditions.
+        """
+        return int(self.x // self.world_width)
+
+    @property
+    def winding_y(self):
+        """
+        y position for periodic boundary conditions.
+        """
+        return int(self.y // self.world_height)
+
+    @property
+    def x_world(self):
+        """
+        world x position for periodic boundary conditions.
+        """
+        return self.x % self.world_width
+
+    @property
+    def y_world(self):
+        """
+        world y position for periodic boundary conditions.
+        """
+        return self.y % self.world_height
     
     def apply_force(self, fx, fy):
         """
@@ -133,12 +165,14 @@ class PointMass:
             self.prev_y = temp_y
             
             # Derive velocity from position difference: v(t) = [x(t) - x(t-Δt)] / Δt
-            self.vx = (self.x - self.prev_x) / dt
-            self.vy = (self.y - self.prev_y) / dt
-        
+            self.vx = (pbc_operator(self.x - self.prev_x, self.world_width)) / dt
+            self.vy = (pbc_operator(self.y - self.prev_y, self.world_height)) / dt
+
         # Clear forces for next frame
         self.force_x = 0.0
         self.force_y = 0.0
+
+    
     
     def get_position(self):
         """Get the current position as a tuple."""

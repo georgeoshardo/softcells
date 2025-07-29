@@ -3,7 +3,7 @@ Collision detection and resolution for soft body physics.
 """
 
 import math
-
+from ..shapes import Shape
 from ..config import COLLISION_SLOP, COLLISION_CORRECTION_PERCENT, COLLISION_RESTITUTION
 
 
@@ -17,7 +17,20 @@ class CollisionHandler:
         self.slop = COLLISION_SLOP
         self.correction_percent = COLLISION_CORRECTION_PERCENT
         self.restitution = COLLISION_RESTITUTION
-    
+
+    def check_bbs_overlap(self, shape_a, shape_b):
+
+        bb_a1, bb_a2, bb_a3, bb_a4 = shape_a._get_bounding_box_points(return_unique_windings=False)
+        bb_b1, bb_b2, bb_b3, bb_b4 = shape_b._get_bounding_box_points(return_unique_windings=False)
+
+        bb_b_as_shape = Shape([bb_b4, bb_b3, bb_b2, bb_b1])
+
+        for point in [bb_a1, bb_a2, bb_a3, bb_a4]:
+            if bb_b_as_shape.is_point_inside(point):
+                return True
+
+        return False
+
     def handle_collisions(self, shapes):
         """
         Detect and resolve collisions between shapes.
@@ -30,29 +43,27 @@ class CollisionHandler:
             return
 
         for i in range(num_shapes):
+            shape_a = shapes[i]
             for j in range(i + 1, num_shapes):
-                shape_a = shapes[i]
                 shape_b = shapes[j]
 
-                # --- BROAD PHASE: Bounding Box Check ---
-                min_ax, max_ax, min_ay, max_ay = shape_a._get_bounding_box()
-                min_bx, max_bx, min_by, max_by = shape_b._get_bounding_box()
-
-                # If the bounding boxes do not overlap, skip to the next pair
-                if max_ax < min_bx or min_ax > max_bx or max_ay < min_by or min_ay > max_by:
-                    continue  # Not colliding, so no need for the expensive check
+                bbs_overlap = self.check_bbs_overlap(shape_a, shape_b)
+                if not bbs_overlap:
+                    continue
 
                 # Test points of A inside B
                 for point in shape_a.get_points():
-                    if shape_b.is_point_inside(point):
-                        self.resolve_collision(point, shape_b)
+                    is_inside, at_windings = shape_b.is_point_inside(point)
+                    if is_inside:
+                        self.resolve_collision(point, shape_b, at_windings=at_windings)
 
                 # Test points of B inside A
                 for point in shape_b.get_points():
-                    if shape_a.is_point_inside(point):
-                        self.resolve_collision(point, shape_a)
+                    is_inside, at_windings = shape_a.is_point_inside(point)
+                    if is_inside:
+                        self.resolve_collision(point, shape_a, at_windings=at_windings)
 
-    def resolve_collision(self, colliding_point, shape):
+    def resolve_collision(self, colliding_point, shape, at_windings):
         """
         Resolves a collision between a point and a shape.
         Moves points to resolve overlap and updates velocities for bounce.
@@ -61,17 +72,25 @@ class CollisionHandler:
             colliding_point: The point mass that is colliding
             shape: The shape that the point is colliding with
         """
-        edge_p1, edge_p2, closest_point_data = shape.find_closest_edge(colliding_point)
+        edge_p1, edge_p2, t = shape.find_closest_edge(colliding_point, at_windings=at_windings)
 
         if not edge_p1:
             return
 
-        closest_x, closest_y, t = closest_point_data
+        winding_x, winding_y = at_windings
+        
+        colliding_point_in_shape_referential = (
+            colliding_point.x + (winding_x - colliding_point.winding_x) * colliding_point.world_width,
+            colliding_point.y + (winding_y - colliding_point.winding_y) * colliding_point.world_height
+        )
+        
+        closest_x = (1-t) * edge_p1.x + t * edge_p2.x
+        closest_y = (1-t) * edge_p1.y + t * edge_p2.y
 
         # --- 1. POSITION RESOLUTION ---
         # The penetration vector points from the edge to the colliding point (inward)
-        penetration_vec_x = colliding_point.x - closest_x
-        penetration_vec_y = colliding_point.y - closest_y
+        penetration_vec_x = colliding_point_in_shape_referential[0] - closest_x
+        penetration_vec_y = colliding_point_in_shape_referential[1] - closest_y
         penetration_depth = math.sqrt(penetration_vec_x**2 + penetration_vec_y**2)
         
         if penetration_depth < 0.001:
