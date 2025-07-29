@@ -134,6 +134,15 @@ class CollisionHandler:
 
         winding_x, winding_y = at_windings
         
+        # Safety check: limit winding differences to prevent explosive forces
+        # This prevents issues when objects cross boundaries
+        winding_diff_x = winding_x - colliding_point.winding_x
+        winding_diff_y = winding_y - colliding_point.winding_y
+        
+        # Limit winding differences to [-1, 1] to handle only immediate boundary crossings
+        winding_diff_x = max(-1, min(1, winding_diff_x))
+        winding_diff_y = max(-1, min(1, winding_diff_y))
+        
         colliding_point_in_shape_referential = (
             colliding_point.x + winding_diff_x * colliding_point.world_width,
             colliding_point.y + winding_diff_y * colliding_point.world_height
@@ -148,7 +157,10 @@ class CollisionHandler:
         penetration_vec_y = colliding_point_in_shape_referential[1] - closest_y
         penetration_depth = math.sqrt(penetration_vec_x**2 + penetration_vec_y**2)
         
-        if penetration_depth < 0.001:
+        # Additional safety check: ignore collisions with unreasonably large penetration depths
+        # This prevents explosive behavior when calculations go wrong
+        max_reasonable_depth = min(colliding_point.world_width, colliding_point.world_height) * 0.5
+        if penetration_depth < 0.001 or penetration_depth > max_reasonable_depth:
             return
 
         # The normal points INWARD into the shape.
