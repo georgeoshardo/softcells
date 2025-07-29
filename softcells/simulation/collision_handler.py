@@ -72,63 +72,92 @@ class CollisionHandler:
         num_shapes = len(shapes)
         if num_shapes < 2:
             return
+        
+        all_membranes = [shape for shape in shapes if shape.identity == 0]
+        all_nuclei = [shape for shape in shapes if shape.identity == 1]
 
-        for i in range(num_shapes):
-            shape_a = shapes[i]
-            for j in range(i + 1, num_shapes):
-                shape_b = shapes[j]
 
-                if shape_a.identity != shape_b.identity and shape_a.cell_unique_id != shape_b.cell_unique_id:
-                    continue
+        for i in range(len(all_membranes)):
+            shape_a = all_membranes[i]
+            for j in range(i + 1, len(all_membranes)):
+                shape_b = all_membranes[j]
 
                 bbs_overlap = self.check_bbs_overlap(shape_a, shape_b)
                 if not bbs_overlap:
                     continue
+
+                # Test points of A inside B
+                for point in shape_a.get_points():
+                    is_inside, at_windings = shape_b.is_point_inside(point)
+                    if is_inside:
+                        self.resolve_collision(point, shape_b, at_windings=at_windings)
+
+                # Test points of B inside A
+                for point in shape_b.get_points():
+                    is_inside, at_windings = shape_a.is_point_inside(point)
+                    if is_inside:
+                        self.resolve_collision(point, shape_a, at_windings=at_windings)
+
+        for i in range(len(all_nuclei)):
+            shape_nuc = all_nuclei[i]
+            for j in range(num_shapes):
+                shape = shapes[j]
+                if shape.identity == 0 and shape.cell_unique_id == shape_nuc.cell_unique_id:
+                    
+                    # Test points of membrane inside nucleus
+                    # for point in shape.get_points():
+                    #     is_inside, at_windings = shape_nuc.is_point_inside(point)
+                    #     if is_inside:
+                    #         self.resolve_collision(point, shape_nuc, at_windings=at_windings)
+
+                    for point in shape_nuc.get_points():
+                        is_inside, at_windings = shape.is_point_inside(point, outside=True)
+                        if is_inside:
+                            self.resolve_collision(point, shape, at_windings=at_windings)
+
+        # for i in range(num_shapes):
+        #     shape_a = shapes[i]
+        #     for j in range(i + 1, num_shapes):
+        #         shape_b = shapes[j]
+
+        #         if shape_a.identity != shape_b.identity and shape_a.cell_unique_id != shape_b.cell_unique_id:
+        #             continue
+
+        #         bbs_overlap = self.check_bbs_overlap(shape_a, shape_b)
+        #         if not bbs_overlap:
+        #             continue
                 
-                if shape_a.identity == shape_b.identity:
+        #         if shape_a.identity == shape_b.identity:
 
 
-                    # Test points of A inside B
-                    for point in shape_a.get_points():
-                        is_inside, at_windings = shape_b.is_point_inside(point)
-                        if is_inside:
-                            self.resolve_collision(point, shape_b, at_windings=at_windings)
+        #             # Test points of A inside B
+        #             for point in shape_a.get_points():
+        #                 is_inside, at_windings = shape_b.is_point_inside(point)
+        #                 if is_inside:
+        #                     self.resolve_collision(point, shape_b, at_windings=at_windings)
 
-                    # Test points of B inside A
-                    for point in shape_b.get_points():
-                        is_inside, at_windings = shape_a.is_point_inside(point)
-                        if is_inside:
-                            self.resolve_collision(point, shape_a, at_windings=at_windings)
-                else:
-                    if shape_a.cell_unique_id == shape_b.cell_unique_id:
+        #             # Test points of B inside A
+        #             for point in shape_b.get_points():
+        #                 is_inside, at_windings = shape_a.is_point_inside(point)
+        #                 if is_inside:
+        #                     self.resolve_collision(point, shape_a, at_windings=at_windings)
+        #         else:
+        #             if shape_a.cell_unique_id == shape_b.cell_unique_id:
 
-                        shape_mem = shape_a if shape_a.identity == 0 else shape_b
-                        shape_nuc = shape_b if shape_a.identity == 0 else shape_a
+        #                 shape_mem = shape_a if shape_a.identity == 0 else shape_b
+        #                 shape_nuc = shape_b if shape_a.identity == 0 else shape_a
 
 
-                        # test point membrane inside nucleus
-                        for point in shape_mem.get_points():
-                            is_inside, at_windings = shape_nuc.is_point_inside(point)
-                            if is_inside:
-                                self.resolve_collision(point, shape_nuc, at_windings=at_windings)
+        #                 # test point membrane inside nucleus
+        #                 for point in shape_mem.get_points():
+        #                     is_inside, at_windings = shape_nuc.is_point_inside(point)
+        #                     if is_inside:
+        #                         self.resolve_collision(point, shape_nuc, at_windings=at_windings)
                         # test point nucleus outside membrane
                         # for point in shape_nuc.get_points():
                         #     is_outside, at_windings = shape_mem.is_point_inside(point, outside=True)
                         #     if is_outside:
                         #         self.resolve_collision(point, shape_mem, at_windings=at_windings, invert=False)
-                   
-                    # # Test points of A inside B
-                    #     for point in shape_a.get_points():
-                    #         is_inside, at_windings = shape_b.is_point_inside(point)
-                    #         if is_inside:
-                    #             self.resolve_collision(point, shape_b, at_windings=at_windings, inward_normal=True)
-                    #     # Test points of B inside A
-                    #     for point in shape_b.get_points():
-                    #         is_inside, at_windings = shape_a.is_point_inside(point)
-                    #         if is_inside:
-                    #             self.resolve_collision(point, shape_a, at_windings=at_windings, inward_normal=True)
-
-                    
 
 
     def resolve_collision(self, colliding_point, shape, at_windings, invert=False):
