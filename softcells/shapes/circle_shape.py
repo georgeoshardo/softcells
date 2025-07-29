@@ -25,7 +25,7 @@ class CircleShape(Shape):
                  spring_stiffness=DEFAULT_CIRCLE_SPRING_STIFFNESS, 
                  spring_damping=DEFAULT_CIRCLE_SPRING_DAMPING, 
                  drag_coefficient=DEFAULT_GLOBAL_DRAG_COEFFICIENT, 
-                 drag_type=DEFAULT_DRAG_TYPE):
+                 drag_type=DEFAULT_DRAG_TYPE, identity=0):
         """
         Create a circular shape with evenly distributed point masses.
         
