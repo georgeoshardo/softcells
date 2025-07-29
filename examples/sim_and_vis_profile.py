@@ -44,6 +44,8 @@ def main():
         try:
             # Create and run the visualization (which contains the physics engine)
             visualizer = SimulationVisualizer()
+            visualizer.physics_engine.enable_collision_multiprocessing(True, num_processes=14)
+
             # Add circles every 150 units in x and y
             for x in range(168, visualizer.width, 200):
                 for y in range(120, visualizer.height, 170):

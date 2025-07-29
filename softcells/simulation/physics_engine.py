@@ -18,13 +18,15 @@ class PhysicsEngine:
     Handles all physics calculations, forces, and object interactions.
     """
     
-    def __init__(self, world_width=1000, world_height=800):
+    def __init__(self, world_width=1000, world_height=800, enable_collision_mp=False, num_processes=None):
         """
         Initialize the physics engine.
         
         Args:
             world_width (float): Width of the physics world
             world_height (float): Height of the physics world
+            enable_collision_mp (bool): Enable multiprocessing for collision detection
+            num_processes (int): Number of processes for collision detection (None for auto-detect)
         """
         # World boundaries
         self.world_width = world_width
@@ -48,10 +50,21 @@ class PhysicsEngine:
         self.shapes = []  # Shape objects (which contain point masses)
         
         # Collision handling
-        self.collision_handler = CollisionHandler()
+        self.collision_handler = CollisionHandler(enable_multiprocessing=enable_collision_mp, 
+                                                 num_processes=num_processes)
         
         # Initialize scene
         self.create_initial_scene()
+    
+    def enable_collision_multiprocessing(self, enabled=True, num_processes=None):
+        """
+        Enable or disable multiprocessing for collision detection.
+        
+        Args:
+            enabled (bool): Whether to enable multiprocessing
+            num_processes (int): Number of processes to use (None for auto-detect)
+        """
+        self.collision_handler.enable_multiprocessing(enabled, num_processes)
     
     def create_initial_scene(self):
         """Create initial physics objects for the simulation."""

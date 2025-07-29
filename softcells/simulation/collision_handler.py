@@ -3,8 +3,58 @@ Collision detection and resolution for soft body physics.
 """
 
 import math
+import multiprocessing as mp
+from functools import partial
 from ..shapes import Shape
 from ..config import COLLISION_SLOP, COLLISION_CORRECTION_PERCENT, COLLISION_RESTITUTION
+
+
+def _process_shape_pair_collision(shape_pair_data, slop, correction_percent, restitution):
+    """
+    Worker function for parallel collision detection between a pair of shapes.
+    
+    Args:
+        shape_pair_data: Tuple containing (shape_a_idx, shape_b_idx, shape_a, shape_b)
+        slop: Collision slop parameter
+        correction_percent: Collision correction percentage
+        restitution: Collision restitution coefficient
+        
+    Returns:
+        Tuple: (shape_a_idx, shape_b_idx, collisions_a_in_b, collisions_b_in_a)
+               where collisions are lists of (point_idx, at_windings) tuples
+    """
+    shape_a_idx, shape_b_idx, shape_a, shape_b = shape_pair_data
+    
+    # Create a temporary collision handler with the same parameters
+    temp_handler = CollisionHandler()
+    temp_handler.slop = slop
+    temp_handler.correction_percent = correction_percent
+    temp_handler.restitution = restitution
+    
+    # Check if bounding boxes overlap first
+    if not temp_handler.check_bbs_overlap(shape_a, shape_b):
+        return None
+    
+    collisions_a_in_b = []
+    collisions_b_in_a = []
+    
+    # Test points of A inside B
+    for point_idx, point in enumerate(shape_a.get_points()):
+        is_inside, at_windings = shape_b.is_point_inside(point)
+        if is_inside:
+            collisions_a_in_b.append((point_idx, at_windings))
+    
+    # Test points of B inside A
+    for point_idx, point in enumerate(shape_b.get_points()):
+        is_inside, at_windings = shape_a.is_point_inside(point)
+        if is_inside:
+            collisions_b_in_a.append((point_idx, at_windings))
+    
+    # Only return data if there are actual collisions
+    if collisions_a_in_b or collisions_b_in_a:
+        return (shape_a_idx, shape_b_idx, collisions_a_in_b, collisions_b_in_a)
+    
+    return None
 
 
 class CollisionHandler:
@@ -12,11 +62,19 @@ class CollisionHandler:
     Handles collision detection and resolution between shapes.
     """
     
-    def __init__(self):
+    def __init__(self, enable_multiprocessing=False, num_processes=None):
         """Initialize the collision handler."""
         self.slop = COLLISION_SLOP
         self.correction_percent = COLLISION_CORRECTION_PERCENT
         self.restitution = COLLISION_RESTITUTION
+        
+        # Multiprocessing settings
+        self.multiprocessing_enabled = enable_multiprocessing
+        self.num_processes = num_processes if num_processes is not None else mp.cpu_count()
+        self.pool = None
+        
+        # Threshold for when to use multiprocessing (avoid overhead for small shape counts)
+        self.mp_threshold = 10  # Only use multiprocessing if we have 10+ shapes
 
     def check_bbs_overlap(self, shape_a, shape_b):
         """
@@ -43,6 +101,7 @@ class CollisionHandler:
     def handle_collisions(self, shapes):
         """
         Detect and resolve collisions between shapes.
+        Automatically chooses between serial and parallel processing.
         
         Args:
             shapes (list): List of Shape objects to check for collisions
@@ -51,6 +110,18 @@ class CollisionHandler:
         if num_shapes < 2:
             return
 
+        # Use multiprocessing for large numbers of shapes
+        if (self.multiprocessing_enabled and 
+            num_shapes >= self.mp_threshold and 
+            num_shapes * (num_shapes - 1) // 2 > 50):  # 50+ shape pairs
+            self._handle_collisions_parallel(shapes)
+        else:
+            self._handle_collisions_serial(shapes)
+
+    def _handle_collisions_serial(self, shapes):
+        """Serial collision detection (original implementation)."""
+        num_shapes = len(shapes)
+        
         for i in range(num_shapes):
             shape_a = shapes[i]
             for j in range(i + 1, num_shapes):
@@ -71,6 +142,74 @@ class CollisionHandler:
                     is_inside, at_windings = shape_a.is_point_inside(point)
                     if is_inside:
                         self.resolve_collision(point, shape_a, at_windings=at_windings)
+
+    def _handle_collisions_parallel(self, shapes):
+        """Parallel collision detection using multiprocessing."""
+        # Create shape pairs for collision testing
+        shape_pairs = []
+        for i in range(len(shapes)):
+            for j in range(i + 1, len(shapes)):
+                shape_pairs.append((i, j, shapes[i], shapes[j]))
+
+        # Process collisions in parallel
+        if self.pool is None:
+            self.pool = mp.Pool(self.num_processes)
+        
+        try:
+            # Use partial to pass collision handler parameters
+            collision_worker = partial(_process_shape_pair_collision, 
+                                     slop=self.slop, 
+                                     correction_percent=self.correction_percent,
+                                     restitution=self.restitution)
+            
+            # Process all shape pairs in parallel
+            collision_results = self.pool.map(collision_worker, shape_pairs)
+            
+            # Apply collision results back to the original shapes
+            self._apply_collision_results(collision_results, shapes)
+            
+        except Exception as e:
+            print(f"Multiprocessing collision detection failed: {e}")
+            # Fallback to serial processing
+            self._handle_collisions_serial(shapes)
+
+    def _apply_collision_results(self, collision_results, shapes):
+        """Apply the collision results from parallel processing back to shapes."""
+        for result in collision_results:
+            if result is None:
+                continue
+                
+            shape_a_idx, shape_b_idx, collisions_a_in_b, collisions_b_in_a = result
+            shape_a = shapes[shape_a_idx]
+            shape_b = shapes[shape_b_idx]
+            
+            # Apply collisions of A's points inside B
+            for point_idx, at_windings in collisions_a_in_b:
+                point = shape_a.get_points()[point_idx]
+                self.resolve_collision(point, shape_b, at_windings=at_windings)
+            
+            # Apply collisions of B's points inside A
+            for point_idx, at_windings in collisions_b_in_a:
+                point = shape_b.get_points()[point_idx]
+                self.resolve_collision(point, shape_a, at_windings=at_windings)
+
+    def enable_multiprocessing(self, enabled=True, num_processes=None):
+        """Enable or disable multiprocessing for collision detection."""
+        self.multiprocessing_enabled = enabled
+        if num_processes is not None:
+            self.num_processes = num_processes
+        
+        # Clean up existing pool if changing settings
+        if self.pool is not None:
+            self.pool.close()
+            self.pool.join()
+            self.pool = None
+
+    def __del__(self):
+        """Clean up multiprocessing pool on destruction."""
+        if hasattr(self, 'pool') and self.pool is not None:
+            self.pool.close()
+            self.pool.join()
 
     def resolve_collision(self, colliding_point, shape, at_windings):
         """
