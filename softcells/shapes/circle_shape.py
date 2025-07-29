@@ -13,6 +13,8 @@ from ..config import (
 )
 from .base_shape import Shape
 
+import numpy as np
+
 
 class CircleShape(Shape):
     """
@@ -47,8 +49,8 @@ class CircleShape(Shape):
         # Generate points around the circle
         for i in range(num_points):
             angle = -(2 * math.pi * i) / num_points
-            x = center_x + radius * math.cos(angle)
-            y = center_y + radius * math.sin(angle)
+            x = center_x + radius * math.cos(angle) + np.random.rand()
+            y = center_y + radius * math.sin(angle) + np.random.rand()
             
             point = PointMass(x, y, point_mass, drag_coefficient, 
                               world_height=DEFAULT_HEIGHT, world_width=DEFAULT_WIDTH)

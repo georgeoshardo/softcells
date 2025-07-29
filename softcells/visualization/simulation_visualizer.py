@@ -90,7 +90,7 @@ class SimulationVisualizer:
                     mouse_x, mouse_y = pygame.mouse.get_pos()
                     circle = self.physics_engine.add_circle_shape(
                         mouse_x, mouse_y, 50, 
-                        num_points=50, 
+                        num_points=30, 
                         point_mass=1.0, 
                         pressure=GLOBAL_PRESSURE_AMOUNT,
                         spring_stiffness=1150.0, 
@@ -103,7 +103,7 @@ class SimulationVisualizer:
                     mouse_x, mouse_y = pygame.mouse.get_pos()
                     circle1, circle2 = self.physics_engine.add_cell_shape(
                         mouse_x, mouse_y, 50, 
-                        num_points=50, 
+                        num_points=30, 
                         point_mass=1.0, 
                         pressure=GLOBAL_PRESSURE_AMOUNT,
                         spring_stiffness=1150.0, 
@@ -192,7 +192,7 @@ class SimulationVisualizer:
                     mouse_x, mouse_y = pygame.mouse.get_pos()
                     circle = self.physics_engine.add_circle_shape(
                         mouse_x, mouse_y, 10, 
-                        num_points=50, 
+                        num_points=30, 
                         point_mass=1.0, 
                         pressure=GLOBAL_PRESSURE_AMOUNT,
                         spring_stiffness=1150.0, 

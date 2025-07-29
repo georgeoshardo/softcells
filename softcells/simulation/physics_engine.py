@@ -10,7 +10,7 @@ from ..config import (
     DEFAULT_DRAG_TYPE, GLOBAL_PRESSURE_AMOUNT, PERIODIC, DEFAULT_WIDTH, DEFAULT_HEIGHT
 )
 from .collision_handler import CollisionHandler
-
+import numpy as np
 
 class PhysicsEngine:
     """
@@ -125,11 +125,11 @@ class PhysicsEngine:
         self.shapes.append(circle_mem)
 
         circle_nuc = CircleShape(
-            center_x, center_y, radius/5,
+            center_x+np.random.rand(), center_y+np.random.rand(), radius/1.9,
             num_points=num_points,
             point_mass=point_mass,
-            pressure=pressure,
-            spring_stiffness=spring_stiffness,
+            pressure=pressure*2,
+            spring_stiffness=spring_stiffness*2,
             spring_damping=spring_damping,
             drag_coefficient=self.global_drag_coefficient,
             drag_type=self.drag_type,

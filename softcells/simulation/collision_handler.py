@@ -106,10 +106,10 @@ class CollisionHandler:
                 if shape_mem.identity == 0 and shape_mem.cell_unique_id == shape_nuc.cell_unique_id:
 
                     # Test points of membrane inside nucleus
-                    #for point in shape_mem.get_points():
-                    #    is_inside, at_windings = shape_nuc.is_point_inside(point)
-                    #    if is_inside:
-                    #        self.resolve_collision(point, shape_nuc, at_windings=at_windings)
+                    for point in shape_mem.get_points():
+                       is_inside, at_windings = shape_nuc.is_point_inside(point)
+                       if is_inside:
+                           self.resolve_collision(point, shape_nuc, at_windings=at_windings)
 
                     for point in shape_nuc.get_points():
                         is_outside, at_windings = shape_mem.is_point_outside(point)
