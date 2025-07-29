@@ -38,27 +38,34 @@ from softcells.config import GLOBAL_PRESSURE_AMOUNT
 def main():
     import cProfile 
     import pstats
-    """Main entry point for the decoupled simulation."""
-    try:
-        # Create and run the visualization (which contains the physics engine)
-        visualizer = SimulationVisualizer()
-        # Add circles every 150 units in x and y
-        for x in range(168, visualizer.width, 200):
-            for y in range(120, visualizer.height, 170):
-                visualizer.physics_engine.add_circle_shape(
-                    x+np.random.randint(-20,20), y+np.random.randint(-20,20), 50,
-                    num_points=30,
-                    point_mass=1.0,
-                    pressure=GLOBAL_PRESSURE_AMOUNT*2,
-                    spring_stiffness=1150.0,
-                    spring_damping=10.0
-                )
-        visualizer.run()
-    except KeyboardInterrupt:
-        print("\nSimulation interrupted by user.")
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        raise
+
+    with cProfile.Profile() as pr:
+        """Main entry point for the decoupled simulation."""
+        try:
+            # Create and run the visualization (which contains the physics engine)
+            visualizer = SimulationVisualizer()
+            # Add circles every 150 units in x and y
+            for x in range(168, visualizer.width, 200):
+                for y in range(120, visualizer.height, 170):
+                    visualizer.physics_engine.add_circle_shape(
+                        x+np.random.randint(-20,20), y+np.random.randint(-20,20), 50,
+                        num_points=30,
+                        point_mass=1.0,
+                        pressure=GLOBAL_PRESSURE_AMOUNT*2,
+                        spring_stiffness=1150.0,
+                        spring_damping=10.0
+                    )
+            visualizer.run()
+        except KeyboardInterrupt:
+            print("\nSimulation interrupted by user.")
+            stats = pstats.Stats(pr)
+            stats.sort_stats(pstats.SortKey.TIME)
+            stats.dump_stats(filename="profile.prof")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            raise
+    
+
 
 
 if __name__ == "__main__":

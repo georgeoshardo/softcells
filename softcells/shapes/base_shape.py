@@ -5,7 +5,8 @@ This module contains no rendering dependencies.
 
 import math
 import numpy as np
-from numba import njit
+from numba import njit, prange
+import line_profiler
 
 from ..core import Spring, PointMass
 from ..utils.geometry import vectorized_orientations, on_segment
@@ -13,9 +14,24 @@ from ..config import (
     DEFAULT_SHAPE_COLOR, DEFAULT_LINE_WIDTH, COLLISION_SLOP, 
     COLLISION_CORRECTION_PERCENT, COLLISION_RESTITUTION
 )
+fastmath = False
+parallel = False
+
+@njit(cache=True, fastmath=fastmath, nogil=True, parallel=False)
+def _compute_windings_batch(x_coords, y_coords, world_width, world_height):
+    """Batch compute winding numbers for all points."""
+    n = len(x_coords)
+
+    winding_x_out = np.empty(n, dtype=np.int32)
+    winding_y_out = np.empty(n, dtype=np.int32)
+    for i in range(n):
+        winding_x_out[i] = int(x_coords[i] // world_width)
+        winding_y_out[i] = int(y_coords[i] // world_height)
+    return winding_x_out, winding_y_out
+    
 
 
-@njit(cache=False, parallel=False, fastmath=True)
+@njit(cache=True, parallel=parallel, fastmath=fastmath, nogil=True)
 def _ray_cast_intersections_stable(test_point_x, test_point_y, outside_point_x, outside_point_y, 
                                   shape_points_x, shape_points_y):
     """
@@ -30,7 +46,7 @@ def _ray_cast_intersections_stable(test_point_x, test_point_y, outside_point_x, 
     Returns:
         int: Number of intersections between ray and shape edges
     """
-    intersections = 0
+    intersections = np.int32(0)
     num_points = shape_points_x.shape[0]
     
     for i in range(num_points):
@@ -70,8 +86,61 @@ def _ray_cast_intersections_stable(test_point_x, test_point_y, outside_point_x, 
     
     return intersections
 
+#TODO how much faster is this?
+@njit(cache=True, fastmath=fastmath, nogil=True)
+def _ray_cast_optimized(test_point_x, test_point_y, outside_point_x, outside_point_y, 
+                       shape_points_x, shape_points_y):
+    """
+    Optimized ray casting with early termination and vectorized operations.
+    """
+    intersections = 0
+    num_points = shape_points_x.shape[0]
+    
+    # Pre-compute ray direction
+    ray_dx = outside_point_x - test_point_x
+    ray_dy = outside_point_y - test_point_y
+    
+    for i in range(num_points):
+        edge_start_x = shape_points_x[i]
+        edge_start_y = shape_points_y[i]
+        edge_end_x = shape_points_x[(i + 1) % num_points]
+        edge_end_y = shape_points_y[(i + 1) % num_points]
+        
+        # Quick bounding box check for edge
+        edge_min_y = min(edge_start_y, edge_end_y)
+        edge_max_y = max(edge_start_y, edge_end_y)
+        
+        # Early termination: if ray doesn't cross edge's Y range
+        if test_point_y < edge_min_y or test_point_y > edge_max_y:
+            continue
+            
+        # Quick check: if edge is completely to the left of test point
+        edge_max_x = max(edge_start_x, edge_end_x)
+        if edge_max_x < test_point_x:
+            continue
+            
+        # Use parametric line intersection (faster than orientation tests)
+        edge_dx = edge_end_x - edge_start_x
+        edge_dy = edge_end_y - edge_start_y
+        
+        # Avoid division by zero
+        if abs(edge_dy) < 1e-10:
+            continue
+            
+        # Calculate intersection parameter
+        t_edge = (test_point_y - edge_start_y) / edge_dy
+        
+        if t_edge >= 0.0 and t_edge <= 1.0:
+            # Calculate x coordinate of intersection
+            intersect_x = edge_start_x + t_edge * edge_dx
+            
+            # Check if intersection is to the right of test point
+            if intersect_x > test_point_x:
+                intersections += 1
+    
+    return intersections
 
-@njit(cache=False, parallel=False, fastmath=True)
+@njit(cache=True, parallel=parallel, fastmath=fastmath, nogil=True)
 def _get_bounding_box_coords_and_windings(x_coords, y_coords, winding_x_coords, winding_y_coords):
     """
     Numba-compiled function to calculate bounding box coordinates and unique windings.
@@ -89,10 +158,10 @@ def _get_bounding_box_coords_and_windings(x_coords, y_coords, winding_x_coords, 
         return 0.0, 0.0, 0.0, 0.0, np.array([0], dtype=np.int32), np.array([0], dtype=np.int32)
     
     # Calculate bounding box
-    min_x = x_coords[0]
-    max_x = x_coords[0]
-    min_y = y_coords[0]
-    max_y = y_coords[0]
+    min_x = np.float64(x_coords[0])
+    max_x = np.float64(x_coords[0])
+    min_y = np.float64(y_coords[0])
+    max_y = np.float64(y_coords[0])
     
     for i in range(1, len(x_coords)):
         if x_coords[i] < min_x:
@@ -210,6 +279,8 @@ class Shape:
         self.drag_coefficient = 0.0    # Default drag coefficient
         self.drag_type = "linear"      # Default drag type ("linear" or "quadratic")
         self.drag_enabled = True       # Enable/disable drag forces
+
+    
     
     def add_point(self, point):
         """Add a point mass to this shape."""
@@ -417,7 +488,8 @@ class Shape:
         unique_windings = list(set(all_windings))
 
         return (min(x_coords), max(x_coords), min(y_coords), max(y_coords)), unique_windings
-
+    
+    @line_profiler.profile
     def is_point_inside(self, test_point):
         """
         Check if a point is inside this shape using the ray-casting algorithm.
@@ -435,13 +507,21 @@ class Shape:
         # Extract coordinates into numpy arrays for Numba processing
         x_coords = np.array([p.x for p in self.points], dtype=np.float64)
         y_coords = np.array([p.y for p in self.points], dtype=np.float64)
-        winding_x_coords = np.array([p.winding_x for p in self.points], dtype=np.int32)
-        winding_y_coords = np.array([p.winding_y for p in self.points], dtype=np.int32)
+
+        world_width = self.points[0].world_width
+        world_height = self.points[0].world_height
+
+        winding_x_coords, winding_y_coords = _compute_windings_batch(
+            x_coords, y_coords, world_width, world_height,
+        )
+        
         
         # Use Numba-compiled function for fast bounding box and windings computation
         min_x, max_x, min_y, max_y, unique_windings_x, unique_windings_y = _get_bounding_box_coords_and_windings(
             x_coords, y_coords, winding_x_coords, winding_y_coords
         )
+
+
 
         # Pre-compute shape coordinates as numpy arrays for stable type inference
         shape_points_x = np.array([p.x for p in self.points], dtype=np.float64)
