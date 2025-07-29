@@ -25,7 +25,7 @@ class CircleShape(Shape):
                  spring_stiffness=DEFAULT_CIRCLE_SPRING_STIFFNESS, 
                  spring_damping=DEFAULT_CIRCLE_SPRING_DAMPING, 
                  drag_coefficient=DEFAULT_GLOBAL_DRAG_COEFFICIENT, 
-                 drag_type=DEFAULT_DRAG_TYPE, identity=0):
+                 drag_type=DEFAULT_DRAG_TYPE, cell_unique_id=0, identity=0):
         """
         Create a circular shape with evenly distributed point masses.
         
@@ -40,6 +40,7 @@ class CircleShape(Shape):
             spring_damping (float): Damping of springs connecting points
             drag_coefficient (float): Viscous drag coefficient for all points
             drag_type (str): Type of drag - "linear" or "quadratic"
+            identity (int): Unique identifier for the shape
         """
         super().__init__()
         
@@ -65,3 +66,7 @@ class CircleShape(Shape):
         
         # Set a distinct color for circle shapes
         self.set_color(CIRCLE_COLOR) 
+
+        # Set identity
+        self.set_identity(identity)
+        self.set_cell_unique_id(cell_unique_id)
