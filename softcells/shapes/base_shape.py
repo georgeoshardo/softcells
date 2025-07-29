@@ -334,8 +334,11 @@ class Shape:
                 p2 = (edge_start.x, edge_start.y)
                 q2 = (edge_end.x, edge_end.y)
 
-                # Check for intersection between the ray and the current edge.
-                # This is a standard line segment intersection algorithm.
+            # General case of intersection
+            # https://www.algotree.org/images/Line_Segment_Intersection_General_Case.svg
+            if o1 != o2 and o3 != o4:
+                intersections += 1
+                continue
 
                 o1, o2, o3, o4 = vectorized_orientations(p1, q1, p2, q2)
 

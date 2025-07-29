@@ -43,6 +43,9 @@ class SimulationVisualizer:
         # Rendering control
         self.clock = pygame.time.Clock()
         
+        # FPS counter
+        self.fps_font = pygame.font.SysFont("Arial", 18, bold=True)
+        
         # Colors
         self.background_color = DEFAULT_BACKGROUND_COLOR
         self.point_color = DEFAULT_POINT_COLOR
@@ -395,6 +398,42 @@ class SimulationVisualizer:
             pygame.draw.rect(self.screen, (255, 255, 0), background_rect, 2)
             self.screen.blit(pause_surface, pause_rect)
     
+    def _render_fps_counter(self):
+        """Render FPS counter in the top right corner."""
+        fps = str(int(self.clock.get_fps()))
+        fps_text = self.fps_font.render(f"FPS: {fps}", True, pygame.Color("RED"))
+        # Position in top right corner
+        fps_rect = fps_text.get_rect()
+        fps_rect.topright = (self.width - 10, 10)
+        self.screen.blit(fps_text, fps_rect)
+    
+    def _render_object_counter(self):
+        """Render object counter in the bottom right corner."""
+        # Count individual points
+        individual_points = len(self.physics_engine.points)
+        
+        # Count points in shapes
+        shape_points = sum(len(shape.points) for shape in self.physics_engine.shapes)
+        
+        # Total points
+        total_points = individual_points + shape_points
+        
+        # Number of shapes
+        n_shapes = len(self.physics_engine.shapes)
+        
+        points_text = self.fps_font.render(f"Points: {total_points}", True, pygame.Color("WHITE"))
+        shapes_text = self.fps_font.render(f"Shapes: {n_shapes}", True, pygame.Color("WHITE"))
+        
+        # Position in bottom right corner
+        points_rect = points_text.get_rect()
+        shapes_rect = shapes_text.get_rect()
+        
+        points_rect.bottomright = (self.width - 10, self.height - 30)
+        shapes_rect.bottomright = (self.width - 10, self.height - 10)
+        
+        self.screen.blit(points_text, points_rect)
+        self.screen.blit(shapes_text, shapes_rect)
+    
     def render(self):
         """Render the complete simulation."""
         # Clear screen
@@ -413,6 +452,8 @@ class SimulationVisualizer:
         # Draw UI elements
         self._render_instructions()
         self._render_pause_indicator()
+        self._render_fps_counter()
+        self._render_object_counter()
         
         # Update display
         pygame.display.flip()
