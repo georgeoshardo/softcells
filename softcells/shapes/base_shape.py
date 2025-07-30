@@ -482,14 +482,14 @@ class Shape:
 
         ### Compute random forces
         random_noise = self.random_noise(
-            sigma=np.sqrt(2)
+            sigma=np.sqrt(2*10000000)
         )
 
         # see Gillespie, PRE 95
         # "Exact numerical simulation of the Ornstein-Uhlenbeck process and its integral"
 
         deterministic_ou_term = np.exp(-DEFAULT_DT/100)
-        random_ou_term = random_noise * np.sqrt(1-np.exp(-2*DEFAULT_DT/100))
+        random_ou_term = random_noise * np.sqrt(1-np.exp(-DEFAULT_DT/100))
 
         self.random_force = self.random_force * deterministic_ou_term + random_ou_term
     
