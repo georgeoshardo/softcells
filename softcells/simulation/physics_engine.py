@@ -7,7 +7,13 @@ from ..core import PointMass, Spring
 from ..shapes import CircleShape
 from ..config import (
     DEFAULT_DT, DEFAULT_GRAVITY, DEFAULT_GLOBAL_DRAG_COEFFICIENT, 
-    DEFAULT_DRAG_TYPE, GLOBAL_PRESSURE_AMOUNT, PERIODIC, DEFAULT_WIDTH, DEFAULT_HEIGHT
+    DEFAULT_DRAG_TYPE, GLOBAL_PRESSURE_AMOUNT, PERIODIC, DEFAULT_WIDTH, DEFAULT_HEIGHT,
+    DEFAULT_CELL_SPRING_STIFFNESS, DEFAULT_CELL_SPRING_DAMPING, DEFAULT_CELL_NUM_POINTS,
+    CELL_MEMBRANE_RADIUS_FACTOR, CELL_NUCLEUS_RADIUS_FACTOR, CELL_PRESSURE_FACTOR,
+    CELL_NUCLEUS_STIFFNESS_FACTOR, CELL_SPRING_CONNECTION_PROBABILITY,
+    CELL_SPRING_STIFFNESS_FACTOR, CELL_SPRING_DAMPING_FACTOR,
+    CELL_SPRING_LENGTH_MIN_FACTOR, CELL_SPRING_LENGTH_MAX_FACTOR,
+    BOUNDARY_ENERGY_LOSS_FACTOR, DEFAULT_WORLD_WIDTH, DEFAULT_WORLD_HEIGHT
 )
 from .collision_handler import CollisionHandler
 import numpy as np
@@ -18,7 +24,7 @@ class PhysicsEngine:
     Handles all physics calculations, forces, and object interactions.
     """
     
-    def __init__(self, world_width=1000, world_height=800):
+    def __init__(self, world_width=DEFAULT_WORLD_WIDTH, world_height=DEFAULT_WORLD_HEIGHT):
         """
         Initialize the physics engine.
         
@@ -91,9 +97,9 @@ class PhysicsEngine:
         self.points.append(point)
         return point
     
-    def add_cell_shape(self, center_x, center_y, radius, num_points=50, 
-                        point_mass=1.0, pressure=None, spring_stiffness=1150.0, 
-                        spring_damping=10.0):
+    def add_cell_shape(self, center_x, center_y, radius, num_points=DEFAULT_CELL_NUM_POINTS, 
+                        point_mass=1.0, pressure=None, spring_stiffness=DEFAULT_CELL_SPRING_STIFFNESS, 
+                        spring_damping=DEFAULT_CELL_SPRING_DAMPING):
         """
         Add a circle shape to the simulation.
         
@@ -114,10 +120,10 @@ class PhysicsEngine:
             pressure = GLOBAL_PRESSURE_AMOUNT
             
         circle_mem = CircleShape(
-            center_x, center_y, radius*2.2,
+            center_x, center_y, radius*CELL_MEMBRANE_RADIUS_FACTOR,
             num_points=num_points,
             point_mass=point_mass,
-            pressure=pressure*1.2,
+            pressure=pressure*CELL_PRESSURE_FACTOR,
             spring_stiffness=spring_stiffness,
             spring_damping=spring_damping,
             drag_coefficient=self.global_drag_coefficient,
@@ -128,11 +134,11 @@ class PhysicsEngine:
         self.shapes.append(circle_mem)
 
         circle_nuc = CircleShape(
-            center_x+np.random.rand(), center_y+np.random.rand(), radius*1.8,
+            center_x+np.random.rand(), center_y+np.random.rand(), radius*CELL_NUCLEUS_RADIUS_FACTOR,
             num_points=num_points,
             point_mass=point_mass,
-            pressure=pressure*1.2,
-            spring_stiffness=spring_stiffness*1.2,
+            pressure=pressure*CELL_PRESSURE_FACTOR,
+            spring_stiffness=spring_stiffness*CELL_NUCLEUS_STIFFNESS_FACTOR,
             spring_damping=spring_damping,
             drag_coefficient=self.global_drag_coefficient,
             drag_type=self.drag_type,
@@ -142,15 +148,21 @@ class PhysicsEngine:
         self.shapes.append(circle_nuc)
 
         for i in range(len(circle_nuc.points)):
-            if np.random.rand() > 0.3:
-                circle_nuc.springs.append(Spring(circle_nuc.points[i], circle_mem.points[i], circle_mem.spring_stiffness*0.3, circle_mem.spring_damping*0.2, (radius*np.random.uniform(0.1*radius,0.3*radius))))
+            if np.random.rand() > CELL_SPRING_CONNECTION_PROBABILITY:
+                circle_nuc.springs.append(Spring(
+                    circle_nuc.points[i], 
+                    circle_mem.points[i], 
+                    circle_mem.spring_stiffness*CELL_SPRING_STIFFNESS_FACTOR, 
+                    circle_mem.spring_damping*CELL_SPRING_DAMPING_FACTOR, 
+                    radius*np.random.uniform(CELL_SPRING_LENGTH_MIN_FACTOR*radius, CELL_SPRING_LENGTH_MAX_FACTOR*radius)
+                ))
 
         self.current_cell_unique_id += 1
         return circle_mem, circle_nuc
 
     def add_circle_shape(self, center_x, center_y, radius, num_points=50, 
-                        point_mass=1.0, pressure=None, spring_stiffness=1150.0, 
-                        spring_damping=10.0, identity=0):
+                        point_mass=1.0, pressure=None, spring_stiffness=DEFAULT_CELL_SPRING_STIFFNESS, 
+                        spring_damping=DEFAULT_CELL_SPRING_DAMPING, identity=0):
         """
         Add a circle shape to the simulation.
         
@@ -298,17 +310,17 @@ class PhysicsEngine:
         if not PERIODIC:
             if point.x < 0:
                 point.x = 0
-                point.vx = -point.vx * 0.8  # Some energy loss on bounce
+                point.vx = -point.vx * BOUNDARY_ENERGY_LOSS_FACTOR  # Some energy loss on bounce
             elif point.x > self.world_width:
                 point.x = self.world_width
-                point.vx = -point.vx * 0.8
+                point.vx = -point.vx * BOUNDARY_ENERGY_LOSS_FACTOR
             
             if point.y < 0:
                 point.y = 0
-                point.vy = -point.vy * 0.8
+                point.vy = -point.vy * BOUNDARY_ENERGY_LOSS_FACTOR
             elif point.y > self.world_height:
                 point.y = self.world_height
-                point.vy = -point.vy * 0.8
+                point.vy = -point.vy * BOUNDARY_ENERGY_LOSS_FACTOR
         else:
             pass
     

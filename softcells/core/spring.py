@@ -3,6 +3,7 @@ Spring physics implementation for connecting point masses.
 """
 
 import math
+from ..config import DEFAULT_SPRING_STIFFNESS, DEFAULT_SPRING_DAMPING
 
 
 class Spring:
@@ -11,7 +12,7 @@ class Spring:
     Implements Hooke's law with velocity damping.
     """
     
-    def __init__(self, point1, point2, stiffness=50.0, damping=5.0, rest_length=None):
+    def __init__(self, point1, point2, stiffness=DEFAULT_SPRING_STIFFNESS, damping=DEFAULT_SPRING_DAMPING, rest_length=None):
         """
         Create a spring between two point masses.
         

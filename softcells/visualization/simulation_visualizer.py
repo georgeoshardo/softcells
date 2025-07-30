@@ -10,7 +10,19 @@ import pickle
 from ..config import (
     DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_FPS,
     DEFAULT_BACKGROUND_COLOR, DEFAULT_POINT_COLOR, DEFAULT_TRAIL_COLOR,
-    MAX_TRAIL_LENGTH, GLOBAL_PRESSURE_AMOUNT
+    MAX_TRAIL_LENGTH, GLOBAL_PRESSURE_AMOUNT,
+    INTERFACE_CELL_SPRING_STIFFNESS, INTERFACE_CELL_SPRING_DAMPING,
+    INTERFACE_CIRCLE_SPRING_STIFFNESS, DEFAULT_CELL_RADIUS,
+    PRESSURE_ADJUSTMENT_FACTOR, STIFFNESS_ADJUSTMENT_FACTOR,
+    DAMPING_ADJUSTMENT_FACTOR, DRAG_ADJUSTMENT_FACTOR,
+    SPRING_STRETCH_THRESHOLD,
+    INTERFACE_CIRCLE_RADIUS, INTERFACE_LARGE_CIRCLE_RADIUS,
+    INTERFACE_CIRCLE_NUM_POINTS, INTERFACE_CELL_NUM_POINTS,
+    INTERFACE_POINT_MASS, INTERFACE_CIRCLE_DAMPING,
+    INTERFACE_YELLOW_COLOR, INTERFACE_RED_COLOR,
+    INTERFACE_BRIGHT_YELLOW_COLOR, INTERFACE_DRAG_ENABLED_COLOR,
+    INTERFACE_DRAG_DISABLED_COLOR, SPRING_STRETCH_INTENSITY_FACTOR,
+    SPRING_INTENSITY_MIN
 )
 from ..simulation.physics_engine import PhysicsEngine
 
@@ -89,34 +101,34 @@ class SimulationVisualizer:
                 elif event.key == pygame.K_SPACE:
                     # Add a new point at mouse position
                     mouse_x, mouse_y = pygame.mouse.get_pos()
-                    self.physics_engine.add_point(mouse_x, mouse_y, 1.0)
+                    self.physics_engine.add_point(mouse_x, mouse_y, INTERFACE_POINT_MASS)
                     self.point_trails.append([])
                 elif event.key == pygame.K_c:
                     # Add a new circle shape at mouse position
                     mouse_x, mouse_y = pygame.mouse.get_pos()
                     circle = self.physics_engine.add_circle_shape(
-                        mouse_x, mouse_y, 50, 
-                        num_points=30, 
-                        point_mass=1.0, 
+                        mouse_x, mouse_y, INTERFACE_CIRCLE_RADIUS, 
+                        num_points=INTERFACE_CIRCLE_NUM_POINTS, 
+                        point_mass=INTERFACE_POINT_MASS, 
                         pressure=GLOBAL_PRESSURE_AMOUNT,
-                        spring_stiffness=1150.0, 
-                        spring_damping=10.0,
+                        spring_stiffness=INTERFACE_CIRCLE_SPRING_STIFFNESS, 
+                        spring_damping=INTERFACE_CIRCLE_DAMPING,
                         identity=0
                     )
-                    circle.set_color((255, 255, 100))  # Yellow
+                    circle.set_color(INTERFACE_YELLOW_COLOR)  # Yellow
                 elif event.key == pygame.K_v:
                     # Add a new circle shape at mouse position
                     mouse_x, mouse_y = pygame.mouse.get_pos()
                     circle1, circle2 = self.physics_engine.add_cell_shape(
-                        mouse_x, mouse_y, 20, 
-                        num_points=50, 
-                        point_mass=1.0, 
+                        mouse_x, mouse_y, DEFAULT_CELL_RADIUS, 
+                        num_points=INTERFACE_CELL_NUM_POINTS, 
+                        point_mass=INTERFACE_POINT_MASS, 
                         pressure=GLOBAL_PRESSURE_AMOUNT,
-                        spring_stiffness=2150.0, 
-                        spring_damping=20.0
+                        spring_stiffness=INTERFACE_CELL_SPRING_STIFFNESS, 
+                        spring_damping=INTERFACE_CELL_SPRING_DAMPING
                     )
-                    circle1.set_color((255, 255, 100))  # Yellow
-                    circle2.set_color((255, 100, 100))  # Red
+                    circle1.set_color(INTERFACE_YELLOW_COLOR)  # Yellow
+                    circle2.set_color(INTERFACE_RED_COLOR)  # Red
 
                 elif event.key == pygame.K_p:
                     # Toggle pressure physics for all shapes
@@ -124,33 +136,33 @@ class SimulationVisualizer:
                 elif event.key == pygame.K_PLUS or event.key == pygame.K_EQUALS:
                     # Increase pressure for all shapes
                     for shape in self.physics_engine.shapes:
-                        shape.set_pressure(shape.pressure_amount * 1.2)
+                        shape.set_pressure(shape.pressure_amount * PRESSURE_ADJUSTMENT_FACTOR)
                 elif event.key == pygame.K_MINUS:
                     # Decrease pressure for all shapes
                     for shape in self.physics_engine.shapes:
-                        shape.set_pressure(shape.pressure_amount * 0.8)
+                        shape.set_pressure(shape.pressure_amount / PRESSURE_ADJUSTMENT_FACTOR)
                 elif event.key == pygame.K_s:
                     # Toggle spring physics for all shapes
                     self.physics_engine.toggle_springs_for_all_shapes()
                 elif event.key == pygame.K_q:
                     # Increase spring stiffness
                     for shape in self.physics_engine.shapes:
-                        new_stiffness = shape.spring_stiffness * 1.2
+                        new_stiffness = shape.spring_stiffness * STIFFNESS_ADJUSTMENT_FACTOR
                         shape.set_spring_properties(new_stiffness, shape.spring_damping)
                 elif event.key == pygame.K_a:
                     # Decrease spring stiffness
                     for shape in self.physics_engine.shapes:
-                        new_stiffness = shape.spring_stiffness * 0.8
+                        new_stiffness = shape.spring_stiffness / STIFFNESS_ADJUSTMENT_FACTOR
                         shape.set_spring_properties(new_stiffness, shape.spring_damping)
                 elif event.key == pygame.K_w:
                     # Increase spring damping
                     for shape in self.physics_engine.shapes:
-                        new_damping = shape.spring_damping * 1.2
+                        new_damping = shape.spring_damping * DAMPING_ADJUSTMENT_FACTOR
                         shape.set_spring_properties(shape.spring_stiffness, new_damping)
                 elif event.key == pygame.K_z:
                     # Decrease spring damping
                     for shape in self.physics_engine.shapes:
-                        new_damping = shape.spring_damping * 0.8
+                        new_damping = shape.spring_damping / DAMPING_ADJUSTMENT_FACTOR
                         shape.set_spring_properties(shape.spring_stiffness, new_damping)
                 elif event.key == pygame.K_d:
                     # Toggle drag physics for all objects
@@ -197,15 +209,15 @@ class SimulationVisualizer:
                     # Add a new circle shape at mouse position
                     mouse_x, mouse_y = pygame.mouse.get_pos()
                     circle = self.physics_engine.add_circle_shape(
-                        mouse_x, mouse_y, 70, 
-                        num_points=30, 
-                        point_mass=1.0, 
+                        mouse_x, mouse_y, INTERFACE_LARGE_CIRCLE_RADIUS, 
+                        num_points=INTERFACE_CIRCLE_NUM_POINTS, 
+                        point_mass=INTERFACE_POINT_MASS, 
                         pressure=GLOBAL_PRESSURE_AMOUNT,
-                        spring_stiffness=1150.0, 
-                        spring_damping=10.0,
+                        spring_stiffness=INTERFACE_CIRCLE_SPRING_STIFFNESS, 
+                        spring_damping=INTERFACE_CIRCLE_DAMPING,
                         identity=1
                     )
-                    circle.set_color((255, 100, 100))  # Red
+                    circle.set_color(INTERFACE_RED_COLOR)  # Red
                     # Toggle bounding box display
                     # self.show_bounding_boxes = not self.show_bounding_boxes
             
@@ -366,11 +378,11 @@ class SimulationVisualizer:
                 stretch_ratio = spring.get_stretch_ratio()
                 
                 if stretch_ratio > 1.1:  # Stretched (red)
-                    intensity = min(1.0, (stretch_ratio - 1.0) * 3.0)
-                    color = (int(255 * intensity), 0, int(255 * (1 - intensity)))
+                    intensity = min(SPRING_INTENSITY_MIN, (stretch_ratio - SPRING_INTENSITY_MIN) * SPRING_STRETCH_INTENSITY_FACTOR)
+                    color = (int(255 * intensity), 0, int(255 * (SPRING_INTENSITY_MIN - intensity)))
                 elif stretch_ratio < 0.9:  # Compressed (blue)
-                    intensity = min(1.0, (1.0 - stretch_ratio) * 3.0)
-                    color = (int(255 * (1 - intensity)), 0, int(255 * intensity))
+                    intensity = min(SPRING_INTENSITY_MIN, (SPRING_INTENSITY_MIN - stretch_ratio) * SPRING_STRETCH_INTENSITY_FACTOR)
+                    color = (int(255 * (SPRING_INTENSITY_MIN - intensity)), 0, int(255 * intensity))
                 else:  # Normal length (green)
                     color = (0, 255, 0)
                 
@@ -394,7 +406,7 @@ class SimulationVisualizer:
             # Check if this is the dragged point
             if self.dragging and point is self.dragged_point:
                 # Highlight the dragged point
-                color = (255, 255, 100)  # Bright yellow
+                color = INTERFACE_BRIGHT_YELLOW_COLOR  # Bright yellow
                 radius += 3  # Make it larger
                 outline_color = (255, 255, 255)
                 outline_width = 2
@@ -484,7 +496,7 @@ class SimulationVisualizer:
             # Check if this is the dragged point
             if self.dragging and point is self.dragged_point:
                 # Highlight the dragged point
-                color = (255, 255, 100)  # Bright yellow
+                color = INTERFACE_BRIGHT_YELLOW_COLOR  # Bright yellow
                 radius += 3  # Make it larger
                 outline_color = (255, 255, 255)
                 outline_width = 2
@@ -534,7 +546,7 @@ class SimulationVisualizer:
         for i, text in enumerate(instructions):
             color = (200, 200, 200) if i == 0 else (150, 150, 150)
             if "Current drag" in text:
-                color = (255, 255, 0) if self.physics_engine.drag_enabled else (100, 100, 100)
+                color = INTERFACE_DRAG_ENABLED_COLOR if self.physics_engine.drag_enabled else INTERFACE_DRAG_DISABLED_COLOR
             surface = font.render(text, True, color)
             self.screen.blit(surface, (10, 10 + i * 25))
     
