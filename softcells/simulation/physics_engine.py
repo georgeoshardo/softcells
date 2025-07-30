@@ -53,6 +53,9 @@ class PhysicsEngine:
         # Initialize scene
         self.create_initial_scene()
 
+        self.simulation_log = []
+        self.time_step_counter = 0
+
         self.current_cell_unique_id = 0
     
     def create_initial_scene(self):
@@ -308,69 +311,38 @@ class PhysicsEngine:
     def step(self):
         """Advance the simulation by one time step."""
         self.update_physics()
-    
-    def get_simulation_state(self):
+        self.log_simulation_state()
+        self.time_step_counter += 1
+
+    def log_simulation_state(self):
         """
-        Get the current state of the simulation for rendering or analysis.
+        Logs the current state of all points in the simulation.
+        The log is stored in the `self.simulation_log` attribute.
+        """
+        current_time = self.time_step_counter * self.dt
         
-        Returns:
-            dict: Dictionary containing all simulation state information
-        """
-        return {
-            'points': [
-                {
-                    'x': point.x,
-                    'y': point.y,
-                    'vx': point.vx,
-                    'vy': point.vy,
-                    'mass': point.mass,
-                    'drag_coefficient': point.drag_coefficient
+        # Log points that are part of a shape
+        for shape in self.shapes:
+            for point in shape.points:
+                log_entry = {
+                    'time': current_time,
+                    'step': self.time_step_counter,
+                    'x_world': point.x_world,
+                    'y_world': point.y_world,
+                    'cell_unique_id': shape.cell_unique_id,
+                    'identity': shape.identity
                 }
-                for point in self.points
-            ],
-            'shapes': [
-                {
-                    'points': [
-                        {
-                            'x': point.x,
-                            'y': point.y,
-                            'vx': point.vx,
-                            'vy': point.vy,
-                            'mass': point.mass
-                        }
-                        for point in shape.get_points()
-                    ],
-                    'springs': [
-                        {
-                            'point1_idx': shape.get_points().index(spring.point1),
-                            'point2_idx': shape.get_points().index(spring.point2),
-                            'rest_length': spring.rest_length,
-                            'current_length': spring.get_current_length(),
-                            'stretch_ratio': spring.get_stretch_ratio()
-                        }
-                        for spring in shape.springs
-                    ] if hasattr(shape, 'springs') else [],
-                    'color': getattr(shape, 'color', (255, 255, 255)),
-                    'pressure_enabled': getattr(shape, 'pressure_enabled', False),
-                    'pressure_amount': getattr(shape, 'pressure_amount', 0),
-                    'scalar_pressure': getattr(shape, 'scalar_pressure', 0),
-                    'current_volume': getattr(shape, 'current_volume', 0),
-                    'springs_enabled': getattr(shape, 'springs_enabled', False),
-                    'spring_stiffness': getattr(shape, 'spring_stiffness', 0),
-                    'spring_damping': getattr(shape, 'spring_damping', 0),
-                    'drag_enabled': getattr(shape, 'drag_enabled', False),
-                    'drag_coefficient': getattr(shape, 'drag_coefficient', 0),
-                    'drag_type': getattr(shape, 'drag_type', 'linear')
-                }
-                for shape in self.shapes
-            ],
-            'physics_params': {
-                'dt': self.dt,
-                'gravity': self.gravity,
-                'global_drag_coefficient': self.global_drag_coefficient,
-                'drag_type': self.drag_type,
-                'drag_enabled': self.drag_enabled,
-                'world_width': self.world_width,
-                'world_height': self.world_height
+                self.simulation_log.append(log_entry)
+
+        # Log individual points that are not part of any shape
+        for point in self.points:
+            log_entry = {
+                'time': current_time,
+                'step': self.time_step_counter,
+                'x_world': point.x_world,
+                'y_world': point.y_world,
+                'cell_unique_id': -1,  # Use -1 to indicate no shape
+                'identity': -1          # Use -1 to indicate no shape
             }
-        }
+            self.simulation_log.append(log_entry)
+    # ---------------------------

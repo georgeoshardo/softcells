@@ -6,7 +6,7 @@ This module handles all rendering and user interface elements.
 import math
 import pygame
 import sys
-
+import pickle
 from ..config import (
     DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_FPS,
     DEFAULT_BACKGROUND_COLOR, DEFAULT_POINT_COLOR, DEFAULT_TRAIL_COLOR,
