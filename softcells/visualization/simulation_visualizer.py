@@ -191,7 +191,7 @@ class SimulationVisualizer:
                     # Add a new circle shape at mouse position
                     mouse_x, mouse_y = pygame.mouse.get_pos()
                     circle = self.physics_engine.add_circle_shape(
-                        mouse_x, mouse_y, 10, 
+                        mouse_x, mouse_y, 70, 
                         num_points=30, 
                         point_mass=1.0, 
                         pressure=GLOBAL_PRESSURE_AMOUNT,

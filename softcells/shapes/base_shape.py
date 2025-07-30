@@ -283,7 +283,7 @@ class Shape:
 
     def random_noise(self, sigma):
         return sigma * np.random.normal(0,1,size=2)
-    
+
     def set_identity(self, identity):
         """Set a unique identifier for this shape."""
         self.identity = identity
@@ -482,13 +482,14 @@ class Shape:
 
         ### Compute random forces
         random_noise = self.random_noise(
-            sigma=np.sqrt(2*100)
+            sigma=np.sqrt(2)
         )
 
         # see Gillespie, PRE 95
         # "Exact numerical simulation of the Ornstein-Uhlenbeck process and its integral"
-        deterministic_ou_term = np.exp(-DEFAULT_DT/10)
-        random_ou_term = random_noise * np.sqrt(1-np.exp(-2*DEFAULT_DT/0.1))
+
+        deterministic_ou_term = np.exp(-DEFAULT_DT/100)
+        random_ou_term = random_noise * np.sqrt(1-np.exp(-2*DEFAULT_DT/100))
 
         self.random_force = self.random_force * deterministic_ou_term + random_ou_term
     
