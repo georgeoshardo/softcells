@@ -43,3 +43,6 @@ CIRCLE_COLOR = (150, 255, 150)  # Green
 DEFAULT_SHAPE_COLOR = (100, 150, 255)  # Blue 
 
 PERIODIC = True
+
+# Ornstein Uhlenbeck process parameters
+OU_TAU = 10  # Time constant for OU process

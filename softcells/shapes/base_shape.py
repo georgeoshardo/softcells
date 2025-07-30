@@ -11,7 +11,7 @@ from ..core import Spring, PointMass
 from ..utils.geometry import vectorized_orientations, on_segment
 from ..config import (
     DEFAULT_SHAPE_COLOR, DEFAULT_LINE_WIDTH, COLLISION_SLOP, 
-    COLLISION_CORRECTION_PERCENT, COLLISION_RESTITUTION
+    COLLISION_CORRECTION_PERCENT, COLLISION_RESTITUTION, DEFAULT_DT, OU_TAU
 )
 fastmath = False
 parallel = False
@@ -279,8 +279,11 @@ class Shape:
         self.drag_type = "linear"      # Default drag type ("linear" or "quadratic")
         self.drag_enabled = True       # Enable/disable drag forces
 
-    
-    
+        self.random_force = np.zeros(2)
+
+    def random_noise(self, sigma):
+        return sigma * np.random.normal(0,1,size=2)
+
     def set_identity(self, identity):
         """Set a unique identifier for this shape."""
         self.identity = identity
@@ -471,6 +474,30 @@ class Shape:
                 p1.apply_force(fx * 0.5, fy * 0.5)
                 p2.apply_force(fx * 0.5, fy * 0.5)
     
+    def apply_ou_forces(self):
+        """
+        Apply Ornstein-Uhlenbeck forces to all points in the shape.
+        This simulates random thermal motion.
+        """
+
+        ### Compute random forces
+        random_noise = self.random_noise(
+            sigma=np.sqrt(2*10000000)
+        )
+
+        # see Gillespie, PRE 95
+        # "Exact numerical simulation of the Ornstein-Uhlenbeck process and its integral"
+
+        deterministic_ou_term = np.exp(-DEFAULT_DT/100)
+        random_ou_term = random_noise * np.sqrt(1-np.exp(-DEFAULT_DT/100))
+
+        self.random_force = self.random_force * deterministic_ou_term + random_ou_term
+    
+        
+        for point in self.points:
+            point.apply_force(self.random_force[0], self.random_force[1])
+
+
     def _get_bounding_box(self):
         """Get the min and max coordinates of the shape."""
         if not self.points:
@@ -667,9 +694,6 @@ class Shape:
         winding_diff_x = winding_x - test_point.winding_x
         winding_diff_y = winding_y - test_point.winding_y
         
-        # Limit winding differences to [-1, 1] to handle only immediate boundary crossings
-        winding_diff_x = max(-1, min(1, winding_diff_x))
-        winding_diff_y = max(-1, min(1, winding_diff_y))
 
         test_point_in_shape_referential = (
             test_point.x + winding_diff_x * test_point.world_width,

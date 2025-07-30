@@ -60,6 +60,12 @@ class SimulationVisualizer:
         self.show_physics_info = False
         self.show_instructions = True
         self.show_bounding_boxes = False
+        
+        # Drag and drop functionality
+        self.dragging = False
+        self.dragged_point = None
+        self.drag_offset_x = 0
+        self.drag_offset_y = 0
     
     def handle_events(self):
         """Handle pygame events and map them to physics operations."""
@@ -102,12 +108,12 @@ class SimulationVisualizer:
                     # Add a new circle shape at mouse position
                     mouse_x, mouse_y = pygame.mouse.get_pos()
                     circle1, circle2 = self.physics_engine.add_cell_shape(
-                        mouse_x, mouse_y, 50, 
-                        num_points=30, 
+                        mouse_x, mouse_y, 20, 
+                        num_points=25, 
                         point_mass=1.0, 
                         pressure=GLOBAL_PRESSURE_AMOUNT,
-                        spring_stiffness=1150.0, 
-                        spring_damping=10.0
+                        spring_stiffness=2150.0, 
+                        spring_damping=20.0
                     )
                     circle1.set_color((255, 255, 100))  # Yellow
                     circle2.set_color((255, 100, 100))  # Red
@@ -191,7 +197,7 @@ class SimulationVisualizer:
                     # Add a new circle shape at mouse position
                     mouse_x, mouse_y = pygame.mouse.get_pos()
                     circle = self.physics_engine.add_circle_shape(
-                        mouse_x, mouse_y, 10, 
+                        mouse_x, mouse_y, 70, 
                         num_points=30, 
                         point_mass=1.0, 
                         pressure=GLOBAL_PRESSURE_AMOUNT,
@@ -202,7 +208,102 @@ class SimulationVisualizer:
                     circle.set_color((255, 100, 100))  # Red
                     # Toggle bounding box display
                     # self.show_bounding_boxes = not self.show_bounding_boxes
+            
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:  # Left mouse button
+                    mouse_x, mouse_y = event.pos
+                    clicked_point = self._get_point_at_position(mouse_x, mouse_y)
+                    
+                    if clicked_point is not None:
+                        # Start dragging the point
+                        self.dragging = True
+                        self.dragged_point = clicked_point
+                        
+                        # Calculate offset from mouse to point center
+                        self.drag_offset_x = mouse_x - clicked_point.x_world
+                        self.drag_offset_y = mouse_y - clicked_point.y_world
+            
+            elif event.type == pygame.MOUSEBUTTONUP:
+                if event.button == 1:  # Left mouse button
+                    # Stop dragging
+                    self.dragging = False
+                    self.dragged_point = None
+                    self.drag_offset_x = 0
+                    self.drag_offset_y = 0
+            
+            elif event.type == pygame.MOUSEMOTION:
+                if self.dragging and self.dragged_point is not None:
+                    # Update the dragged point's position
+                    mouse_x, mouse_y = event.pos
+                    
+                    # Calculate new world position accounting for the offset
+                    new_world_x = mouse_x - self.drag_offset_x
+                    new_world_y = mouse_y - self.drag_offset_y
+                    
+                    # Convert world coordinates to point's coordinate system considering winding numbers
+                    # Mouse coordinates are always in world space, but the point may be in a different
+                    # winding cell due to periodic boundaries
+                    current_winding_x = self.dragged_point.winding_x
+                    current_winding_y = self.dragged_point.winding_y
+                    
+                    # Calculate the point's new position in its current winding cell
+                    # new_x = new_world_x + winding_offset_x
+                    new_x = new_world_x + current_winding_x * self.dragged_point.world_width
+                    new_y = new_world_y + current_winding_y * self.dragged_point.world_height
+                    
+                    # Update both current and previous positions to avoid velocity spikes
+                    self.dragged_point.x = new_x
+                    self.dragged_point.y = new_y
+                    self.dragged_point.prev_x = new_x
+                    self.dragged_point.prev_y = new_y
+                    
+                    # Reset velocity to prevent sudden movements
+                    self.dragged_point.vx = 0.0
+                    self.dragged_point.vy = 0.0
+                    
+                    # Mark position as dirty for cached values
+                    self.dragged_point._position_dirty = True
+        
         return True
+    
+    def _get_point_at_position(self, mouse_x, mouse_y):
+        """
+        Find the point (individual or in shape) at the given mouse position.
+        Returns the closest point within a reasonable distance.
+        
+        Args:
+            mouse_x (int): Mouse X coordinate
+            mouse_y (int): Mouse Y coordinate
+            
+        Returns:
+            PointMass or None: The point at the position, or None if no point is close enough
+        """
+        closest_point = None
+        closest_distance = float('inf')
+        click_radius = 15  # Maximum distance to consider a click
+        
+        # Check individual points
+        for point in self.physics_engine.points:
+            dx = mouse_x - point.x_world
+            dy = mouse_y - point.y_world
+            distance = math.sqrt(dx * dx + dy * dy)
+            
+            if distance < click_radius and distance < closest_distance:
+                closest_distance = distance
+                closest_point = point
+        
+        # Check points in shapes
+        for shape in self.physics_engine.shapes:
+            for point in shape.points:
+                dx = mouse_x - point.x_world
+                dy = mouse_y - point.y_world
+                distance = math.sqrt(dx * dx + dy * dy)
+                
+                if distance < click_radius and distance < closest_distance:
+                    closest_distance = distance
+                    closest_point = point
+        
+        return closest_point
     
     def _reset_trails(self):
         """Reset all visual trails."""
@@ -289,9 +390,22 @@ class SimulationVisualizer:
         # Draw the individual points
         for point in shape.points:
             radius = max(2, int(3 + point.mass))
+            
+            # Check if this is the dragged point
+            if self.dragging and point is self.dragged_point:
+                # Highlight the dragged point
+                color = (255, 255, 100)  # Bright yellow
+                radius += 3  # Make it larger
+                outline_color = (255, 255, 255)
+                outline_width = 2
+            else:
+                color = shape.color
+                outline_color = (255, 255, 255)
+                outline_width = 1
+            
             pos = (int(point.x_world), int(point.y_world))
-            pygame.draw.circle(self.screen, shape.color, pos, radius)
-            pygame.draw.circle(self.screen, (255, 255, 255), pos, radius, 1)
+            pygame.draw.circle(self.screen, color, pos, radius)
+            pygame.draw.circle(self.screen, outline_color, pos, radius, outline_width)
     
     def _render_bounding_box(self, shape):
         """Render the bounding box of a shape."""
@@ -367,15 +481,25 @@ class SimulationVisualizer:
             # Size based on mass (but keep it visible)
             radius = max(3, int(5 + point.mass * 2))
             
-            # Color intensity based on speed for visual effect
-            speed = math.sqrt(point.vx**2 + point.vy**2)
-            intensity = min(255, int(100 + speed * 0.5))
-            color = (intensity, intensity // 2, 255)
+            # Check if this is the dragged point
+            if self.dragging and point is self.dragged_point:
+                # Highlight the dragged point
+                color = (255, 255, 100)  # Bright yellow
+                radius += 3  # Make it larger
+                outline_color = (255, 255, 255)
+                outline_width = 2
+            else:
+                # Color intensity based on speed for visual effect
+                speed = math.sqrt(point.vx**2 + point.vy**2)
+                intensity = min(255, int(100 + speed * 0.5))
+                color = (intensity, intensity // 2, 255)
+                outline_color = (255, 255, 255)
+                outline_width = 1
             
             # Draw the point
             pos = (int(point.x_world), int(point.y_world))
             pygame.draw.circle(self.screen, color, pos, radius)
-            pygame.draw.circle(self.screen, (255, 255, 255), pos, radius, 1)
+            pygame.draw.circle(self.screen, outline_color, pos, radius, outline_width)
     
     def _render_instructions(self):
         """Render instruction text."""
@@ -390,6 +514,7 @@ class SimulationVisualizer:
             "R - Reset simulation",
             "SPACE - Add point at mouse",
             "C - Add circle at mouse",
+            "Left Click + Drag - Move points",
             "P - Toggle pressure physics",
             "+/- - Increase/Decrease pressure",
             "S - Toggle spring physics",

@@ -273,11 +273,15 @@ class PhysicsEngine:
             shape.apply_pressure_forces()
             
             # Update physics for all points in the shape
-            shape.update_all(self.dt)
+            if shape.identity == 0:
+                print(shape.identity)
+                shape.apply_ou_forces()
             
+            shape.update_all(self.dt)
             # Handle boundary collisions for all points in the shape
             for point in shape.get_points():
                 self._handle_boundary_collision(point)
+
 
         # Handle shape-to-shape collisions
         self.collision_handler.handle_collisions(self.shapes)
