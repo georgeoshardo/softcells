@@ -281,6 +281,8 @@ class Shape:
 
         self.random_force = np.zeros(2)
 
+        
+
     def random_noise(self, sigma):
         return sigma * np.random.normal(0,1,size=2)
 
@@ -474,6 +476,9 @@ class Shape:
                 p1.apply_force(fx * 0.5, fy * 0.5)
                 p2.apply_force(fx * 0.5, fy * 0.5)
     
+
+
+
     def apply_ou_forces(self):
         """
         Apply Ornstein-Uhlenbeck forces to all points in the shape.
@@ -492,10 +497,19 @@ class Shape:
         random_ou_term = random_noise * np.sqrt(1-np.exp(-DEFAULT_DT/100))
 
         self.random_force = self.random_force * deterministic_ou_term + random_ou_term
-    
+
+        deterministic_ou_term_points = np.exp(-DEFAULT_DT/5)
+        random_noise_points = np.sqrt(2*100000000) * np.random.normal(0,1,size=(len(self.points),2))
+        random_ou_term_points = random_noise_points * np.sqrt(1-np.exp(-DEFAULT_DT/5))
+        self.point_random_forces = self.point_random_forces * deterministic_ou_term_points + random_ou_term_points
+
+
+        for i, point in enumerate(self.points):
+            point.apply_force(self.point_random_forces[i][0], self.point_random_forces[i][1])
+
         
         for point in self.points:
-            point.apply_force(self.random_force[0], self.random_force[1])
+            point.apply_force(self.random_force[0] , self.random_force[1]) 
 
 
     def _get_bounding_box(self):

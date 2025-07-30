@@ -72,3 +72,5 @@ class CircleShape(Shape):
         # Set identity
         self.set_identity(identity)
         self.set_cell_unique_id(cell_unique_id)
+
+        self.point_random_forces = np.zeros((len(self.points), 2))

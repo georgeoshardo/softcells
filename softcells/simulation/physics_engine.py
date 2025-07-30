@@ -3,7 +3,7 @@ Pure physics engine for soft body simulation.
 This module contains no rendering or visualization code.
 """
 
-from ..core import PointMass
+from ..core import PointMass, Spring
 from ..shapes import CircleShape
 from ..config import (
     DEFAULT_DT, DEFAULT_GRAVITY, DEFAULT_GLOBAL_DRAG_COEFFICIENT, 
@@ -114,10 +114,10 @@ class PhysicsEngine:
             pressure = GLOBAL_PRESSURE_AMOUNT
             
         circle_mem = CircleShape(
-            center_x, center_y, radius,
+            center_x, center_y, radius*2.2,
             num_points=num_points,
             point_mass=point_mass,
-            pressure=pressure,
+            pressure=pressure*1,
             spring_stiffness=spring_stiffness,
             spring_damping=spring_damping,
             drag_coefficient=self.global_drag_coefficient,
@@ -128,11 +128,11 @@ class PhysicsEngine:
         self.shapes.append(circle_mem)
 
         circle_nuc = CircleShape(
-            center_x+np.random.rand(), center_y+np.random.rand(), radius/1.9,
+            center_x+np.random.rand(), center_y+np.random.rand(), radius*1.8,
             num_points=num_points,
             point_mass=point_mass,
-            pressure=pressure*2,
-            spring_stiffness=spring_stiffness*2,
+            pressure=pressure*1.5,
+            spring_stiffness=spring_stiffness*1.5,
             spring_damping=spring_damping,
             drag_coefficient=self.global_drag_coefficient,
             drag_type=self.drag_type,
@@ -140,6 +140,10 @@ class PhysicsEngine:
             cell_unique_id=self.current_cell_unique_id
         )
         self.shapes.append(circle_nuc)
+
+        for i in range(len(circle_nuc.points)):
+            if np.random.rand() > 0.7:
+                circle_nuc.springs.append(Spring(circle_nuc.points[i], circle_mem.points[i], circle_mem.spring_stiffness*0.03, circle_mem.spring_damping*0.2, (radius*0.5)))
 
         self.current_cell_unique_id += 1
         return circle_mem, circle_nuc
