@@ -117,7 +117,7 @@ class PhysicsEngine:
             center_x, center_y, radius*2.2,
             num_points=num_points,
             point_mass=point_mass,
-            pressure=pressure*1,
+            pressure=pressure*1.2,
             spring_stiffness=spring_stiffness,
             spring_damping=spring_damping,
             drag_coefficient=self.global_drag_coefficient,
@@ -131,8 +131,8 @@ class PhysicsEngine:
             center_x+np.random.rand(), center_y+np.random.rand(), radius*1.8,
             num_points=num_points,
             point_mass=point_mass,
-            pressure=pressure*1.5,
-            spring_stiffness=spring_stiffness*1.5,
+            pressure=pressure*1.2,
+            spring_stiffness=spring_stiffness*1.2,
             spring_damping=spring_damping,
             drag_coefficient=self.global_drag_coefficient,
             drag_type=self.drag_type,
@@ -142,8 +142,8 @@ class PhysicsEngine:
         self.shapes.append(circle_nuc)
 
         for i in range(len(circle_nuc.points)):
-            if np.random.rand() > 0.7:
-                circle_nuc.springs.append(Spring(circle_nuc.points[i], circle_mem.points[i], circle_mem.spring_stiffness*0.03, circle_mem.spring_damping*0.2, (radius*0.5)))
+            if np.random.rand() > 0.3:
+                circle_nuc.springs.append(Spring(circle_nuc.points[i], circle_mem.points[i], circle_mem.spring_stiffness*0.3, circle_mem.spring_damping*0.2, (radius*np.random.uniform(0.1*radius,0.3*radius))))
 
         self.current_cell_unique_id += 1
         return circle_mem, circle_nuc
@@ -334,7 +334,9 @@ class PhysicsEngine:
                     'x_world': point.x_world,
                     'y_world': point.y_world,
                     'cell_unique_id': shape.cell_unique_id,
-                    'identity': shape.identity
+                    'identity': shape.identity,
+                    "winding_x": point.get_winding_x(),
+                    "winding_y": point.get_winding_y()
                 }
                 self.simulation_log.append(log_entry)
 
