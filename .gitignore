@@ -212,3 +212,5 @@ DECOUPLED_ARCHITECTURE.md
 DECOUPLING_COMPLETE.md
 
 .vscode
+*.png
+*.pkl

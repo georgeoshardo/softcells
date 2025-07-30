@@ -29,7 +29,7 @@ Controls:
 """
 
 from softcells import SimulationVisualizer
-
+import pickle
 
 def main():
     """Main entry point for the decoupled simulation."""
@@ -39,6 +39,9 @@ def main():
         visualizer.run()
     except KeyboardInterrupt:
         print("\nSimulation interrupted by user.")
+        with open("simulation_log.pkl", "wb") as f:
+            pickle.dump(visualizer.physics_engine.simulation_log, f)
+            print("Log successfully saved to simulation_log.pkl")
     except Exception as e:
         print(f"An error occurred: {e}")
         raise
