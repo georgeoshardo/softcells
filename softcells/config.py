@@ -6,8 +6,8 @@ Configuration settings and constants for the soft body simulation.
 GLOBAL_PRESSURE_AMOUNT = 3500
 
 # Simulation settings
-DEFAULT_WIDTH = 1500
-DEFAULT_HEIGHT = 1000
+DEFAULT_WIDTH = 1536 
+DEFAULT_HEIGHT = 1024  
 DEFAULT_FPS = 120
 DEFAULT_DT = 1.0 / 100.0  # Time step for physics calculations
 

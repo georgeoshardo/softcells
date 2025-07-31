@@ -31,12 +31,27 @@ Controls:
 from softcells import SimulationVisualizer
 import pickle
 
+import numpy as np
 def main():
     """Main entry point for the decoupled simulation."""
     try:
         # Create and run the visualization (which contains the physics engine)
         visualizer = SimulationVisualizer()
+        # for x in range(168, visualizer.width, 400):
+        #     for y in range(120, visualizer.height, 400  ):
+        #         circle1, circle2 = visualizer.physics_engine.add_cell_shape(
+        #                         x+np.random.randint(-10,20), y+np.random.randint(-10,20), 20, 
+        #                         num_points=50, 
+        #                         point_mass=1.0, 
+        #                         pressure=3500,
+        #                         spring_stiffness=2150.0, 
+        #                         spring_damping=20.0
+        #                     )
+        #         circle1.set_color((255, 255, 100))  # Yellow
+        #         circle2.set_color((255, 100, 100))  # Red
+
         visualizer.run()
+
     except KeyboardInterrupt:
         print("\nSimulation interrupted by user.")
         with open("simulation_log.pkl", "wb") as f:

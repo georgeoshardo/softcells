@@ -2,18 +2,60 @@
 Pygame-based visualization layer for the physics simulation.
 This module handles all rendering and user interface elements.
 """
-
 import math
 import pygame
 import sys
+import pandas as pd
 import pickle
+import numpy as np
 from ..config import (
     DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_FPS,
     DEFAULT_BACKGROUND_COLOR, DEFAULT_POINT_COLOR, DEFAULT_TRAIL_COLOR,
     MAX_TRAIL_LENGTH, GLOBAL_PRESSURE_AMOUNT
 )
 from ..simulation.physics_engine import PhysicsEngine
+from ..visualization.rendering import create_masks, cyto_perlin, nuc_perlin
+from skimage.measure import label, regionprops
+from scipy.signal import fftconvolve
+from scipy.special import jv
 
+import mahotas
+
+import cv2
+
+def get_fluorescence_kernel(wavelength, NA, n, radius, scale, offset=0):
+    """
+    Returns a 2D numpy array which is an airy-disk approximation of the fluorescence point spread function
+
+    Parameters
+    ----------
+    Lambda : float
+        Wavelength of imaging light (micron)
+    NA : float
+        Numerical aperture of the objective lens
+    n : float
+        Refractive index of the imaging medium (~1 for air, ~1.4-1.5 for oil)
+    radius : int
+        The radius of the PSF to be rendered in pixels
+    scale : float
+        The pixel size of the image to be rendered (micron/pix)
+    offset : float
+        A constant offset to add to the PSF, increases accuracy of long range effects, especially useful for colony simulations.
+
+    Returns
+    -------
+    2-D numpy array representing the fluorescence contrast PSF
+    """
+
+    r = np.arange(-radius, radius + 1)
+    kaw = 2 * NA / n * np.pi / wavelength  # np.tan(np.arcsin(NA/n))
+    xx, yy = np.meshgrid(r, r)
+    xx, yy = xx * scale, yy * scale
+    rr = np.sqrt(xx**2 + yy**2) * kaw
+    PSF = (2 * jv(1, rr) / (rr)) ** 2
+    PSF[radius, radius] = 1
+    PSF += offset
+    return PSF
 
 class SimulationVisualizer:
     """
@@ -35,7 +77,7 @@ class SimulationVisualizer:
         self.width = width
         self.height = height
         self.screen = pygame.display.set_mode((width, height))
-        pygame.display.set_caption("Soft Body Physics Simulation")
+        pygame.display.set_caption("Cells!")
         
         # Create the physics engine
         self.physics_engine = PhysicsEngine(world_width=width, world_height=height)
@@ -66,7 +108,125 @@ class SimulationVisualizer:
         self.dragged_point = None
         self.drag_offset_x = 0
         self.drag_offset_y = 0
-    
+
+        self.show_image = False # <-- ADDED: Flag to control image overlay
+        
+        # Image overlay surface
+        self.screen_subsample = 8
+        self.image_surface = self._create_placeholder_image() # <-- ADDED: Load image
+
+        self.cyto_perlin = cyto_perlin((int(self.width/self.screen_subsample ), int(self.height/self.screen_subsample )))
+        self.nuc_perlin = nuc_perlin((int(self.width/self.screen_subsample ), int(self.height/self.screen_subsample )))
+        
+
+        pixel_size = 16 / 250
+        wavelength = 0.4
+        NA = 0.95
+        n = 1
+        radius = 100
+        self.PSF_nuc = get_fluorescence_kernel(wavelength, NA, n, radius, pixel_size)
+
+
+        pixel_size = 16 / 250
+        wavelength = 0.5
+        NA = 0.7
+        n = 1
+        radius = 100
+        self.PSF_cyto = get_fluorescence_kernel(wavelength, NA, n, radius, pixel_size)
+
+
+
+    def _create_placeholder_image(self):
+        """
+        Creates a sample RGB image from a numpy array and returns it as a Pygame surface.
+        Replace this with your actual image loading and conversion logic.
+        """
+
+
+        data = self.physics_engine.log_simulation_state(return_data=True)
+        if data:
+            data_df = pd.DataFrame(data)
+
+            screen_subsample = 8
+
+            masks_cyto, masks_nuc = create_masks(data_df, self.height, self.width, 2, screen_subsample)
+            masks_nuc = (masks_nuc/masks_nuc.max() * 255).astype(np.uint8)
+            masks_nuc = masks_nuc.T
+            masks_cyto = masks_cyto.T
+            edt = cv2.distanceTransform((masks_nuc > 0).astype(np.uint8), cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+            if edt.max() > 0:
+                edt = edt / edt.max()
+
+            #cyto_edt = cv2.distanceTransform((masks_cyto > 0).astype(np.uint8), cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+
+            #if cyto_edt.max() > 0:
+            #    cyto_edt = cyto_edt / cyto_edt.max()
+
+
+            cyto_edt = np.zeros_like(masks_cyto, dtype=np.float32)
+            for mask_id in np.unique(masks_cyto)[1:]:
+                cyto_bin_mask = (masks_cyto == mask_id)
+                nuclei_mask = (masks_nuc == mask_id)
+
+                dt = cv2.distanceTransform((cyto_bin_mask > 0).astype(np.uint8), cv2.DIST_L2, cv2.DIST_MASK_PRECISE)**(1/2)
+
+
+                dt -= (nuclei_mask) * 10
+                cyto_edt += dt
+            
+
+            cyto_edt = (cyto_edt) + (masks_cyto > 0) * 10
+            cyto_edt /= 2
+            cyto_edt -= (masks_nuc>0)*2
+            cyto_channel = cyto_edt * self.cyto_perlin * 300
+            nuclei_channel = edt * self.nuc_perlin * 3000 
+            nuclei_image = fftconvolve(nuclei_channel, self.PSF_nuc.astype(np.float32), mode="same") #+ dark_image
+            cyto_image = fftconvolve(cyto_channel, self.PSF_cyto.astype(np.float32), mode="same")# + dark_image_2
+            
+            noise2 = np.random.normal(3000,1000,size=cyto_image.shape)
+            noise1 = np.random.normal(5000,2500,size=cyto_image.shape)
+            noise1 -= noise1.min()
+            noise2 -= noise2.min()
+
+            cyto_image += noise1
+            nuclei_image 
+
+
+            cyto_image = cyto_image/cyto_image.max() * 200
+            nuclei_image = nuclei_image/nuclei_image.max() * 255
+
+            cyto_image_output = np.kron((cyto_image).astype(np.uint16), np.ones((screen_subsample, screen_subsample), dtype=cyto_image.dtype))
+            nuclei_image_output = np.kron((nuclei_image).astype(np.uint16), np.ones((screen_subsample, screen_subsample), dtype=cyto_image.dtype))
+
+            cyto_image_output = np.clip(cyto_image_output - nuclei_image_output/2, 0, None)
+
+            rgb_array = np.zeros((self.width, self.height, 3), dtype=np.uint8)
+            rgb_array[..., 0] = 0#cyto_image_output
+            rgb_array[..., 1] = cyto_image_output
+            rgb_array[..., 2] = nuclei_image_output
+
+
+
+            image_surface = pygame.surfarray.make_surface(rgb_array)
+            image_surface.set_alpha(255)
+
+            return image_surface
+        else:
+            rgb_array = np.zeros((self.width, self.height, 3), dtype=np.uint8)
+            x = np.linspace(0, 255, self.width)
+            y = np.linspace(0, 255, self.height)
+            xv, yv = np.meshgrid(x, y)
+            
+            rgb_array[..., 0] = xv.T  # Red channel
+            rgb_array[..., 1] = yv.T  # Green channel
+            rgb_array[..., 2] = (xv.T + yv.T) % 256  # Blue channel
+            
+            # Convert the numpy array to a Pygame surface
+            image_surface = pygame.surfarray.make_surface(rgb_array)
+            
+            image_surface.set_alpha(150)  
+            return image_surface
+
     def handle_events(self):
         """Handle pygame events and map them to physics operations."""
         for event in pygame.event.get():
@@ -117,7 +277,8 @@ class SimulationVisualizer:
                     )
                     circle1.set_color((255, 255, 100))  # Yellow
                     circle2.set_color((255, 100, 100))  # Red
-
+                elif event.key == pygame.K_g: # <-- ADDED: Keybinding for image
+                    self.show_image = not self.show_image
                 elif event.key == pygame.K_p:
                     # Toggle pressure physics for all shapes
                     self.physics_engine.toggle_pressure_for_all_shapes()
@@ -266,6 +427,11 @@ class SimulationVisualizer:
         
         return True
     
+    def _render_overlay_image(self):
+        """Render the numpy image overlay if it's enabled."""
+        if self.show_image and self.image_surface:
+            self.screen.blit(self._create_placeholder_image(), (0, 0))
+
     def _get_point_at_position(self, mouse_x, mouse_y):
         """
         Find the point (individual or in shape) at the given mouse position.
@@ -508,7 +674,7 @@ class SimulationVisualizer:
             
         font = pygame.font.Font(None, 18)
         instructions = [
-            "Soft Body Physics with Verlet Integration:",
+            "Cells!!",
             "TAB - Pause/Unpause simulation",
             "PERIOD - Step one frame (when paused)",
             "R - Reset simulation",
@@ -600,7 +766,7 @@ class SimulationVisualizer:
         
         # Draw individual point masses
         self._render_individual_points()
-        
+        self._render_overlay_image()
         # Draw UI elements
         self._render_instructions()
         self._render_pause_indicator()

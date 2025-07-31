@@ -281,7 +281,6 @@ class PhysicsEngine:
             
             # Update physics for all points in the shape
             if shape.identity == 0:
-                print(shape.identity)
                 shape.apply_ou_forces()
             
             shape.update_all(self.dt)
@@ -318,37 +317,32 @@ class PhysicsEngine:
         self.log_simulation_state()
         self.time_step_counter += 1
 
-    def log_simulation_state(self):
+    def log_simulation_state(self, return_data = True):
         """
         Logs the current state of all points in the simulation.
         The log is stored in the `self.simulation_log` attribute.
         """
         current_time = self.time_step_counter * self.dt
-        
-        # Log points that are part of a shape
-        for shape in self.shapes:
-            for point in shape.points:
-                log_entry = {
-                    'time': current_time,
-                    'step': self.time_step_counter,
-                    'x_world': point.x_world,
-                    'y_world': point.y_world,
-                    'cell_unique_id': shape.cell_unique_id,
-                    'identity': shape.identity,
-                    "winding_x": point.get_winding_x(),
-                    "winding_y": point.get_winding_y()
-                }
-                self.simulation_log.append(log_entry)
+        entries = []
+        if self.shapes:
+            # Log points that are part of a shape
+            for shape in self.shapes:
+                for point in shape.points:
+                    log_entry = {
+                        'time': current_time,
+                        'step': self.time_step_counter,
+                        'x_world': point.x_world,
+                        'y_world': point.y_world,
+                        'cell_unique_id': shape.cell_unique_id,
+                        'identity': shape.identity,
+                        "winding_x": point.get_winding_x(),
+                        "winding_y": point.get_winding_y()
+                    }
+                    entries.append(log_entry)
+        else:
+            log_entry = None
 
-        # Log individual points that are not part of any shape
-        for point in self.points:
-            log_entry = {
-                'time': current_time,
-                'step': self.time_step_counter,
-                'x_world': point.x_world,
-                'y_world': point.y_world,
-                'cell_unique_id': -1,  # Use -1 to indicate no shape
-                'identity': -1          # Use -1 to indicate no shape
-            }
-            self.simulation_log.append(log_entry)
-    # ---------------------------
+        if return_data:
+            return entries
+        else:
+            self.simulation_log.extend(entries)
